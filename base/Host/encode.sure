@@ -43,8 +43,12 @@ Host.encode(op: Host.Op): Pair<String, String>
     udp_close: Pair.new<String, String>("udp_close", Nat.show(op.port))
     proc_exec: Pair.new<String, String>("proc_exec", op.cmd)
     proc_spawn: Pair.new<String, String>("proc_spawn", op.cmd)
-    proc_run: Pair.new<String, String>("proc_run", op.file | "\n" | op.workdir | "\n" | op.environ | "\n" | op.args)
-    proc_spawn_ex: Pair.new<String, String>("proc_spawn_ex", op.file | "\n" | op.workdir | "\n" | op.environ | "\n" | op.args)
+    proc_run:
+      let packed = Proc.pack(op.file) | Proc.pack(op.workdir) | Proc.pack(op.environ) | op.args
+      Pair.new<String, String>("proc_run", packed)
+    proc_spawn_ex:
+      let packed = Proc.pack(op.file) | Proc.pack(op.workdir) | Proc.pack(op.environ) | op.args
+      Pair.new<String, String>("proc_spawn_ex", packed)
     proc_unsafe_shell: Pair.new<String, String>("proc_unsafe_shell", op.cmd)
     proc_wait: Pair.new<String, String>("proc_wait", Nat.show(op.pid))
     proc_kill: Pair.new<String, String>("proc_kill", Nat.show(op.pid) | "\n" | op.sig)

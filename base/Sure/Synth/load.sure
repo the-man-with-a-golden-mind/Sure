@@ -14,8 +14,9 @@ Sure.Synth.load.cached.def(name: Sure.Name): IO<Maybe<Sure.Def>>
       none: IO { return none }
       some: open rec.value; IO {
         get blob = Sure.Synth.load.cached.blob_key
+        get here = IO.cwd
         if Bool.not(String.eql(rec.value.blob, blob)) then IO { return none }
-        else if String.is_empty(rec.value.file) then IO { return none }
+        else if Bool.not(Sure.Synth.load.cached.file_ok(rec.value.file, here)) then IO { return none }
         else IO {
           get file_hash = IO.file_hash(rec.value.file)
           if Bool.not(String.eql(rec.value.hash, file_hash)) then IO { return none }
@@ -48,44 +49,35 @@ Sure.Synth.load.cached.is_loop(name: String, defs: Sure.Defs): Bool
   }
 
 Sure.Synth.load.cached(names: List(Sure.Name), defs: Sure.Defs): IO<Maybe<Sure.Defs>>
-  //log("- kslc " | String.join(", ", names)) 
+  Sure.Synth.load.cached.go(names, defs)
+
+// Worklist plus IO.yield: one name per turn, no nested dep recursion.
+Sure.Synth.load.cached.go(names: List(Sure.Name), defs: Sure.Defs): IO<Maybe<Sure.Defs>>
   case names {
     nil: IO {
       return some(defs)
     }
-    cons: if Sure.Synth.load.cached.is_loop(names.head, defs)
-      then IO {
-        //IO.print("-- " | names.head | " already cached")
-        Sure.Synth.load.cached(names.tail, defs)
-      }
+    cons: IO {
+      get _ = IO.yield
+      if Sure.Synth.load.cached.is_loop(names.head, defs) then
+        Sure.Synth.load.cached.go(names.tail, defs)
       else IO {
-        let name = names.head
-        get defn = Sure.Synth.load.cached.def(name)
+        get defn = Sure.Synth.load.cached.def(names.head)
         case defn {
           none: IO {
-            //IO.print("-- " | names.head | " cache failed")
             return none
           }
           some: open defn.value; IO {
-            let defs = Sure.Map.set!(name, defn.value, defs)
+            let defs = Sure.Map.set!(names.head, defn.value, defs)
             let deps = Sure.Map.new!
             let deps = Sure.Core.dependencies.go(defn.value.term, deps)
             let deps = Sure.Core.dependencies.go(defn.value.type, deps)
-            let deps = Sure.Map.keys!(deps)
-            get defs = Sure.Synth.load.cached(deps, defs)
-            case defs {
-              none: IO {
-                //IO.print("-- " | names.head | " cache failed because of a dep")
-                return none
-              }
-              some: IO {
-                //IO.print("-- " | names.head | " cached!")
-                Sure.Synth.load.cached(names.tail, defs.value)
-              }
-            }
+            let next = List.concat<Sure.Name>(Sure.Map.keys!(deps), names.tail)
+            Sure.Synth.load.cached.go(next, defs)
           }
         }
       }
+    }
   }
 
 Sure.Synth.load(name: Sure.Name, defs: Sure.Defs): IO<Maybe<Sure.Defs>>
@@ -95,13 +87,18 @@ Sure.Synth.load.with(name: Sure.Name, defs: Sure.Defs, stack: List<String>): IO<
   if Sure.Mod.has(name, stack) then IO {
     return some(defs)
   } else IO {
+    get cache_flag = IO.get_env("SURE_CACHE")
+    let cache_off = case cache_flag {
+      none: false
+      some: String.eql(cache_flag.value, "0")
+    }
     // Cache is keyed by name. A project file on SURE_PATH/KIND_PATH must
     // not lose to a cached stdlib term of the same name (e.g. Main).
     get paths = Sure.Synth.path_env
     get shadowed = Sure.Synth.get_kind_code.search_files(
       Sure.Synth.files_of(name),
       String.split(paths, ":"))
-    if Bool.not(String.is_empty(shadowed)) then IO {
+    if Bool.or(cache_off, Bool.not(String.is_empty(shadowed))) then IO {
       Sure.Synth.load.go(name, Sure.Synth.files_of(name), defs, stack)
     } else IO {
       get cached_defs = Sure.Synth.load.cached([name], defs)

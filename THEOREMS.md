@@ -16,18 +16,17 @@ sure agent --client prove Spec.add2
 If the type does not check, compilation fails. The type checker is the prover;
 people and AI use the same mechanism. Tutorial below still applies.
 
-Theorem proving is the main difference between Kind and traditional pure
+Theorem proving is the main difference between Sure and traditional pure
 functional languages like Haskell. Since proving theorems require certain
 techniques that aren't common in these languages, this tutorial aims to fill
 that gap, supplementing a reader that is familiar with basic functional
 programming concepts (like recursion, pattern matching and algebraic datatypes)
 with the required knowledge to start proving theorems right now.
 
-Before starting, make sure to install Kind via Haskell or JavaScript
-(example: `npm i -g kind-lang`), clone this repository
-(`https://github.com/Kindelia/Kind`) and `cd` into the `kind/base`
-directory (you **must** be there for now). You'll be editing the `Main.kind` file
-only. Open it in your favorite editor and type `kind Main.kind` to type-check it.
+Before starting, clone [Sure](https://github.com/the-man-with-a-golden-mind/Sure)
+and `cd` into `base` (you **must** be there for now). You'll be editing
+`Main.sure` only. Open it in your favorite editor and type `sure Main` to
+type-check it.
 
 The Equal type
 --------------
@@ -63,8 +62,8 @@ two_is_two: 2 == 2
   refl
 ```
 
-Make sure to replace the contents of `Main.kind` by the snipped above, and type
-`kind Main.kind` to test it. You should see:
+Make sure to replace the contents of `Main.sure` by the snipped above, and type
+`sure Main` to test it. You should see:
 
 ```
 two_is_two: 2 == 2
@@ -103,7 +102,7 @@ double_negation(b: Bool): Bool.not(Bool.not(b)) == b
   ?a
 ```
 
-We now run `kind Main.kind`. That will display:
+We now run `sure Main`. That will display:
 
 ```
 Goal ?a:
@@ -132,8 +131,8 @@ With context:
 
 That's because `Equal.refl(Bool, b)` proves that `b == b`, but we want a proof
 that `Bool.not(Bool.not(b)) == b`. Yes, we, humans, know that
-`Bool.not(Bool.not(b))` should always reduce to `b`, but the machine, Kind,
-doesn't know that. Why? Let's see the definition of `Bool.not` (from `Bool.kind`):
+`Bool.not(Bool.not(b))` should always reduce to `b`, but the machine, Sure,
+doesn't know that. Why? Let's see the definition of `Bool.not` (from `Bool.sure`):
 
 ```
 Bool.not(b: Bool): Bool
@@ -143,7 +142,7 @@ Bool.not(b: Bool): Bool
   }
 ```
 
-When Kind sees `Bool.not(Bool.not(b))`, it reduces it to:
+When Sure sees `Bool.not(Bool.not(b))`, it reduces it to:
 
 ```
 Bool.not(case b { true: false, false: true })
@@ -151,7 +150,7 @@ Bool.not(case b { true: false, false: true })
 
 But now the inner case is **stuck**, trying to pattern-match on `b`. It can't
 choose any branch, because it doesn't know what `b` is. It isn't `true`, it
-isn't `false`. It is just a variable. That is the only reason Kind is not
+isn't `false`. It is just a variable. That is the only reason Sure is not
 able to tell that `Bool.not(Bool.not(b))` and `b` are the same. But we can help
 it with a **case analysis**. That is, we can **pattern-match** on `b`:
 
@@ -164,7 +163,7 @@ double_negation(b: Bool): not(not(b)) == b
   }
 ```
 
-Check it with `kind Main.kind`:
+Check it with `sure Main`:
 
 ```
 Goal ?a:
@@ -178,13 +177,13 @@ With context:
 - b: Bool
 ```
 
-Now, instead of one goal, we have two goals. But Kind is still demanding a
+Now, instead of one goal, we have two goals. But Sure is still demanding a
 proof that `Bool.not(Bool.not(b)) == b` in both, so, that wasn't very helpful.
 But consider the following: on the `true` case, we know that `b` is `true`,
 because we just pattern-matched it. Similarly, on the `false` case, we know that
-`b` is `false`. Wouldn't it be great if Kind noticed that, and relaxed its
+`b` is `false`. Wouldn't it be great if Sure noticed that, and relaxed its
 demands by specializing `b` to its concrete value on each branch?  We can ask
-Kind to do just that by adding a `!` after the case expression:
+Sure to do just that by adding a `!` after the case expression:
 
 ```
 double_negation(b: Bool): Bool.not(Bool.not(b)) == b
@@ -195,7 +194,7 @@ double_negation(b: Bool): Bool.not(Bool.not(b)) == b
 ```
 
 Here, `!` stands for "please, be less demanding and specialize b to its concrete
-values on each case". By running `kind Main.kind`, we now see:
+values on each case". By running `sure Main`, we now see:
 
 ```
 Goal ?a:
@@ -209,10 +208,10 @@ With context:
 - b: Bool
 ```
 
-Kind now demands a proof that `not(not(true)) == true` on the first case,
+Sure now demands a proof that `not(not(true)) == true` on the first case,
 and a proof that `not(not(false)) == false` on the second one. That's great,
 because the variable `b` is gone and the `case b` inside `not` is now "unstuck"
-and ready to compute.  To see that this is true, Kind allows us to inspect
+and ready to compute.  To see that this is true, Sure allows us to inspect
 and reduce a goal by writing `-` after it:
 
 ```
@@ -223,7 +222,7 @@ double_negation(b: Bool): Bool.not(Bool.not(b)) == b
   }!
 ```
 
-Running `kind Main.kind`, we see:
+Running `sure Main`, we see:
 
 ```
 Goal ?a:
@@ -238,7 +237,7 @@ With context:
 ```
 
 Notice how a `-N` was added after each reducible expression. That's a label. We
-can ask Kind to reduce any of these by writting that label after the goal.
+can ask Sure to reduce any of these by writting that label after the goal.
 Let's reduce the inner `not` (the one labelled `-22`) on each branch:
 
 ```
@@ -249,7 +248,7 @@ double_negation(b: Bool): Bool.not(Bool.not(b)) == b
   }!
 ```
 
-Running `kind Main.kind`, we see:
+Running `sure Main`, we see:
 
 ```
 Goal ?a:
@@ -275,7 +274,7 @@ double_negation(b: Bool): Bool.not(Bool.not(b)) == b
   }!
 ```
 
-Running `kind Main.kind`:
+Running `sure Main`:
 
 ```
 Goal ?a:
@@ -289,7 +288,7 @@ With context:
 - b: Bool
 ```
 
-That means Kind wants us to prove that `true == true` and `false == false`
+That means Sure wants us to prove that `true == true` and `false == false`
 on each branch respectively. That is easy: since both sides are equal, we can
 just use `refl`:
 
@@ -301,7 +300,7 @@ double_negation(b: Bool): Bool.not(Bool.not(b)) == b
   }!
 ```
 
-By running `kind Main.kind`, we see:
+By running `sure Main`, we see:
 
 ```
 double_negation: (b:Bool) Bool.not(Bool.not(b)) == b
@@ -333,7 +332,7 @@ and_true_b(b: Bool): Bool.and(true, b) == b
   ?a
 ```
 
-By running `kind main.kind`, we see:
+By running `sure Main`, we see:
 
 ```
 Goal ?a:
@@ -344,7 +343,7 @@ With context:
 
 Notice that there is a variable `b` on the left side of the equation. That means
 that we must pattern-match, because it is stuck... or is it? Let's recall the
-definition of `Bool.and` (from `Bool.kind`):
+definition of `Bool.and` (from `Bool.sure`):
 
 ```
 Bool.and(a: Bool, b: Bool): Bool
@@ -364,7 +363,7 @@ and_true_b(b: Bool): Bool.and(true, b) == b
   ?a-
 ```
 
-Run it with `kind Main.kind`:
+Run it with `sure Main`:
 
 ```
 Goal ?a:
@@ -380,7 +379,7 @@ and_true_b(b: Bool): Bool.and(true, b) == b
   ?a-18
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -396,7 +395,7 @@ and_true_b(b: Bool): Bool.and(true, b) == b
   refl
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 and_true_b: (b:Bool) Bool.and(Bool.true,b) == b
@@ -430,7 +429,7 @@ and_b_true(b: Bool): Bool.and(b, true) == b
   ?a-
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -446,7 +445,7 @@ and_b_true(b: Bool): Bool.and(b, true) == b
   ?a-18
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -470,7 +469,7 @@ and_b_true(b: Bool): Bool.and(b, true) == b
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -595,7 +594,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -635,7 +634,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Run with `kind Main.kind`:
+Run with `sure Main`:
 
 ```
 Goal ?a:
@@ -661,7 +660,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -673,7 +672,7 @@ With context:
 
 Since there is just one goal left, that means the first case is correct. Now,
 for the `succ` case, remember that the successor of a number can be written as
-`1 + pred`, where `pred` is the predecessor of `n`. As such, Kind demands
+`1 + pred`, where `pred` is the predecessor of `n`. As such, Sure demands
 us to prove that `half(double(succ(pred))) == succ(pred)`. Let's try to simplify
 the left side of that equation. Write a `-` after the goal:
 
@@ -685,7 +684,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -705,7 +704,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -725,7 +724,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -752,7 +751,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -825,7 +824,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -873,7 +872,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-And the following goal (check with `kind Main.kind`):
+And the following goal (check with `sure Main`):
 
 ```
 Goal ?b:
@@ -898,7 +897,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -929,7 +928,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -955,7 +954,7 @@ half_double_theorem(n: Nat): Nat.half(Nat.double(n)) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 half_double_theorem: (n:Nat) Nat.half(Nat.double(n)) == n
@@ -982,7 +981,7 @@ add_0_n(n: Nat): (0 + n) == n
   ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -991,9 +990,9 @@ With context:
 - n: Nat
 ```
 
-Kind asks us to prove `Nat.add(0,n) == n`. It would be tempting to
+Sure asks us to prove `Nat.add(0,n) == n`. It would be tempting to
 pattern-match on `n`. But let's recall the definition of `Nat.add` (from
-`Nat.kind`):
+`Nat.sure`):
 
 ```
 Nat.add(n: Nat, m: Nat): Nat
@@ -1012,7 +1011,7 @@ add_0_n(n: Nat): (0 + n) == n
   refl
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 add_0_n: (n:Nat) Nat.add(0,n) == n
@@ -1032,7 +1031,7 @@ add_n_0(n: Nat): (n + 0) == n
   ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1053,7 +1052,7 @@ add_n_0(n: Nat): (n + 0) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1079,7 +1078,7 @@ add_n_0(n: Nat): (n + 0) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1104,7 +1103,7 @@ add_n_0(n: Nat): (n + 0) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -1126,7 +1125,7 @@ add_n_0(n: Nat): (n + 0) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -1151,7 +1150,7 @@ add_n_0(n: Nat): (n + 0) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -1177,7 +1176,7 @@ add_n_0(n: Nat): (n + 0) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?b:
@@ -1202,7 +1201,7 @@ add_n_0(n: Nat): (n + 0) == n
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 add_n_0: (n:Nat) Nat.add(n,0) == n
@@ -1241,12 +1240,12 @@ gte_succ_n_n(n: Nat): Nat.gte(Nat.succ(n), n) == true
 ```
 
 Here, `Nat.lte(a,b)` stands for `a <= b` and `Nat.gte(a,b)` stands for `a >= b`
-for natural numbers `a`, `b`. Check their definitions on `Nat.kind`.
+for natural numbers `a`, `b`. Check their definitions on `Nat.sure`.
 
 Proving an inequality: `1 != 0`
 ===============================
 
-In Kind, to prove that a theorem is true, we construct an element of the
+In Sure, to prove that a theorem is true, we construct an element of the
 corresponding type. But how do we prove that something is **not** true? To do
 it, we must show that constructing an element of that type is impossible. The
 easiest way to do it is by contradiction: we first assume that the theorem holds
@@ -1293,7 +1292,7 @@ type Empty {
 But what is the point of a type with zero elements? It is useless, right? Wrong!
 In fact it is one of the most useful types, because of how `case` expressions
 work, and the *princible of explosion*. In order for a `case` expression to be
-considered well-typed in Kind, you must provide a proof that it holds on
+considered well-typed in Sure, you must provide a proof that it holds on
 each case. For example, recall the double negation theorem:
 
 ```
@@ -1304,7 +1303,7 @@ double_negation(b: Bool): Bool.not(Bool.not(b)) == b
   }!
 ```
 
-Here, Kind demanded us a proof of `not(not(true)) == true` on the true
+Here, Sure demanded us a proof of `not(not(true)) == true` on the true
 case, and a proof of `not(not(false)) == false` on the false case. Since we
 provided a proof for each case of `b`, the `case` expression returned a proof of
 `not(not(b)) == b`. That is, from a proof of each specific case (`true` /
@@ -1317,9 +1316,9 @@ xablau(e: Empty): 1 == 0
   }!
 ```
 
-Here, Kind will demand us to prove that `1 == 0` holds for each possible
-value of `e`. But `e` has no case, so, technically, we satisfied Kind's
-demand by doing nothing. Kind then returns a proof that `1 == 0` holds for
+Here, Sure will demand us to prove that `1 == 0` holds for each possible
+value of `e`. But `e` has no case, so, technically, we satisfied Sure's
+demand by doing nothing. Sure then returns a proof that `1 == 0` holds for
 every possible value of `e`. So, did we just prove that `1 == 0`? No! Because
 `xablau` is a function that demands an element of the type `Empty`. But the
 `Empty` type has no elements, so we can never call `xablau`!
@@ -1337,7 +1336,7 @@ one_neq_zero(e: 1 == 0): Empty
 Which stands for "if 1 == 0, then we can construct an element of the Empty
 type". Which can be read as "1 == 0 is a false theorem".
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1357,10 +1356,10 @@ two: if true then Nat else String
   2
 ```
 
-This is a perfectly valid Kind definition. Notice how we used an expression
+This is a perfectly valid Sure definition. Notice how we used an expression
 (`if`) inside the type of `two`. This is completely allowed. If you replaced `if
 true` by `if false`, the program above wouldn't type-check anymore (try it!). We
-can also write inline type annotations in Kind with `::`, so, for example:
+can also write inline type annotations in Sure with `::`, so, for example:
 
 ```
 let two = 2 :: if true then Nat else String
@@ -1392,7 +1391,7 @@ ys: Vector(Nat, 2)
 ```
 
 Take a moment to make sure the above makes sense to you. If you want to, you may
-check the definition of `rewrite` on the `Equal.kind` file (although that may be a
+check the definition of `rewrite` on the `Equal.sure` file (although that may be a
 little bit too indimidating for now!).
 
 With these two insights in mind (that we have expressions inside types, and that
@@ -1418,7 +1417,7 @@ Nat else Empty`. But `Nat.eql(1,0)` is `false`, so, `b` has type `Empty`. Which
 is what we were trying to construct!
 
 In other words, we managed to create an element of type `Empty` by assuming that
-`1 == 0`, plus a clever use of `rewrite` to "trick" Kind. Since the `Empty`
+`1 == 0`, plus a clever use of `rewrite` to "trick" Sure. Since the `Empty`
 type has no elements, that means that, by contradiction, `1` is different of
 `0`. In other words, whenever we have a proof in the following shape:
 
@@ -1451,14 +1450,14 @@ three_neq_two: 3 != 2
   ?a
 ```
 
-Check it with `kind Main.kind`:
+Check it with `sure Main`:
 
 ```
 Goal ?a:
 With type: Not(3 == 2)
 ```
 
-As expected, Kind just tells us we must prove `Not(3 == 2)`, which is the
+As expected, Sure just tells us we must prove `Not(3 == 2)`, which is the
 same as `(e: 3 == 2) -> Empty`. Since that is a function, we create a lambda:
 
 ```
@@ -1466,7 +1465,7 @@ three_neq_two: 3 != 2
   (e) ?a
 ```
 
-Check it with `kind Main.kind`:
+Check it with `sure Main`:
 
 ```
 Goal ?a:
@@ -1475,10 +1474,10 @@ With context:
 - e: 3 == 2
 ```
 
-Now Kind is demanding that we derive an element of type `Empty` given a
+Now Sure is demanding that we derive an element of type `Empty` given a
 value of type `3 == 2`. We could proceed by using the rewrite trick above, but,
 let's be honest, it is confusing and doing it every time would be annoying.
-Instead, we will use the following function, exported by `Bool.kind`:
+Instead, we will use the following function, exported by `Bool.sure`:
 
 ```
 Bool.true_neq_false: true != false
@@ -1503,7 +1502,7 @@ three_neq_two: 3 != 2
   ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1523,7 +1522,7 @@ three_neq_two: 3 != 2
   ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1545,7 +1544,7 @@ three_neq_two: 3 != 2
   ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1569,7 +1568,7 @@ three_neq_two: 3 != 2
   ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1596,7 +1595,7 @@ three_neq_two: 3 != 2
   Bool.true_neq_false(e3)
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 three_neq_two: Not(3 == 2)
@@ -1616,7 +1615,7 @@ not_a_neq_a(b: Bool): Bool.not(b) != b
   ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1625,7 +1624,7 @@ With context:
 - a: Bool
 ```
 
-As expected, Kind demands that we prove `Not(not(b) == b)`, which is the
+As expected, Sure demands that we prove `Not(not(b) == b)`, which is the
 same as `(not(b) == b) -> Empty`. Since that is a function, we add a lambda:
 
 ```
@@ -1633,7 +1632,7 @@ not_a_neq_a(b: Bool): Bool.not(b) != b
   (e) ?a
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1654,7 +1653,7 @@ not_a_neq_a(b: Bool): Bool.not(b) != b
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1674,7 +1673,7 @@ This isn't helpful: we now have two branches with identical goals and contexts.
 But notice that `b` is true on the first branch, and false on the second branch,
 yet `e: Bool.not(b) == b` wasn't "updated" to reflect that fact. Can we update
 it? Sure: just move the lambda to inside the case expression. This will allow
-Kind to rewrite the type of `e` with the concrete values of `b` on each
+Sure to rewrite the type of `e` with the concrete values of `b` on each
 branch:
 
 ```
@@ -1685,7 +1684,7 @@ not_a_neq_a(b: Bool): Bool.not(b) != b
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 Goal ?a:
@@ -1715,7 +1714,7 @@ not_a_neq_a(b: Bool): Bool.not(b) != b
   }!
 ```
 
-Check with `kind Main.kind`:
+Check with `sure Main`:
 
 ```
 not_a_neq_a: (b:Bool) Not(Bool.not(b) == b)
@@ -1789,4 +1788,4 @@ Hints:
 - To prove `succ_n_neq_n`, use `case` to specialize `e` (like on `not_a_neq_a`)
   and the inductive hypothesis.
 
-If you got here congratulations! For more challenges read our [problem list for newcomers](https://github.com/Kindelia/Kind/discussions/259)
+If you got here congratulations! Open an issue on [Sure](https://github.com/the-man-with-a-golden-mind/Sure/issues) if you want more exercises.

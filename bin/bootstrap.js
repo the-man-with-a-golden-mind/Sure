@@ -114,6 +114,7 @@ var r = spawnSync(node, ["--stack-size=10000", cli, "Sure.api.export", "--js", "
     var env = Object.assign({}, process.env, {
       SURE_BASE: path.join(root, "base"),
       KIND_BASE: path.join(root, "base"),
+      SURE_CACHE: "0",
     });
     delete env.SURE_PATH;
     delete env.KIND_PATH;

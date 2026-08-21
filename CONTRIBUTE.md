@@ -13,15 +13,15 @@ If you'd like to help with donations, grants or funding, obviously let us know (
 ## Improve base
 
 The best way to start contributing (and to get familiar with the codebase) is to
-just add files to `base`. Kind's
-[base](https://github.com/Kindelia/Kind/tree/master/base) is in a constant state
+just add files to `base`. Sure's
+[base](https://github.com/the-man-with-a-golden-mind/Sure/tree/master/base) is in a constant state
 of evolution. It has several functions that aren't well documented. Some
 functions may have inconsistent names here and there. Some obvious functions may
 be missing. Many data structures are missing. Find anything you can improve,
 work on it and submit a PR. We'll be very happy to review it!
 
 As an example, all the proofs on
-[Nat/Add](https://github.com/Kindelia/Kind/tree/master/base/Nat/add) were added
+[Nat/add](https://github.com/the-man-with-a-golden-mind/Sure/tree/master/base/Nat/add) were added
 by Eloi (thanks!). That kind of contribution is always welcome!
 
 ## Improve the Numeric libraries
@@ -34,7 +34,7 @@ Implicits (`$` / `id(7)`), nested get/set (`list[0][0] <- 7`), and `Prove` /
 
 ## Implement missing Word algorithms
 
-While Kind optimizes operations such as `I32.add` to native operations in its
+While Sure optimizes operations such as `I32.add` to native operations in its
 back-ends, these operations still need to be implemented in pure Kind, for
 theorem proving purposes. Since implementing these operations for every numeric
 type would be repetitive, most of these are implemented on the `Word` type,
@@ -75,12 +75,12 @@ Adding these would be great.
 ## Add another back-end
 
 Are you a full-time JavaScript developer that doesn't like JavScript?  You can
-just use Kind as your main language, compile it to JS with `kind Your.Term --js`
+just use Sure as your main language, compile it to JS with `sure Your.Term --js`
 and import it with `require("Your.Term")`. Imagine being able to do that for
-every language? Currently, Kind targets Scheme and JavaScript. We'd like more
+every language? Currently, Sure targets Scheme and JavaScript. We'd like more
 backends, as many as possible. Adding a new back-end is somewhat simple: just
 add its syntax on
-[base/Kind/Comp/Target](https://github.com/Kindelia/Kind/tree/master/base/Kind/Comp/Target)!
+[base/Sure/Comp/Target](https://github.com/the-man-with-a-golden-mind/Sure/tree/master/base/Sure/Comp/Target)!
 
 ## Add a rich geometry library
 
@@ -91,7 +91,7 @@ structures and so on. Adding these is always welcome!
 
 ## Add a WebGL renderer
 
-Right now, the [DOM](https://github.com/Kindelia/Kind/blob/master/base/DOM.kind)
+Right now, the [DOM](https://github.com/the-man-with-a-golden-mind/Sure/blob/master/base/DOM.sure)
 type allows rendering text, HTML nodes and pixelated canvas. It would be amazing
 to have a render mode that integrated with WebGL. If you'd like to work on that,
 contact us for more instructions!
@@ -99,13 +99,13 @@ contact us for more instructions!
 ## Get rid of FormCoreJS
 
 Right now, the JavaScript compiler on
-[JavaScript.kind](https://github.com/Kindelia/Kind/tree/master/base/Kind/Comp/Target)
+[Javascript.sure](https://github.com/the-man-with-a-golden-mind/Sure/tree/master/base/Sure/Comp/Target)
 is lackluster, compared to the one in
 [FmcToJs.js](https://github.com/moonad/FormCoreJS/blob/master/FmcToJs.js). That
 is why, when compiling to JS, instead of using the compiler written in Kind, we
 compile to `FormCore`, and then use `FmcToJs.js`. Because of that, the Scheme
 back-end will produce much worse JS code than the Node.js back-end, among other
-issues. It would be nice to improve `JavaScript.kind` to make it as efficient as
+issues. It would be nice to improve `JavaScript.sure` to make it as efficient as
 `FmcToJs.js`, allowing us to get rid of the JavaScript dependency.
 
 ## Improve the pair syntax
@@ -266,7 +266,7 @@ about our type checker. Contact us if you are interested!
 
 ## Add a consistency checker
 
-Compared to other proof languages, kind takes an inverted approach. Instead of
+Compared to other proof languages, Sure takes an inverted approach. Instead of
 consistency being default and expressivity being opt-in (like Agda's
 `type-in-type` pragma), here, expressivity is default and consistency is a
 planned opt-in. That means you're allowed to write programs with no
@@ -274,7 +274,7 @@ restrictions, just like most traditional languages like Haskell or JavaScript,
 as long as they're total and well-typed. But that also means programs that do
 not halt, and logical paradoxes, aren't prohibited.
 
-Regardless, there are several terminating, consistent subsets of Kind, each
+Regardless, there are several terminating, consistent subsets of Sure, each
 admiting different kinds of programs. For example, with structural recursion,
 we're allowed to have Agda-like proofs, but no `Type:Type`. Under elementary
 affine logic, we're allowed to have `Type:Type`, but not certain forms of nested
@@ -284,7 +284,7 @@ For the end user, this could be presented as an icon when type-checking. For
 example:
 
 ```
-$ kind Nat.add
+$ sure Nat.add
 
 Nat.add: (n:Nat) (m:Nat) Nat ✓ ⊤
 
@@ -295,14 +295,12 @@ With `✓` standing for "well-typed" and `⊤` standing for "terminating".
 
 ## Research how to add HoTT features
 
-While we have some interesting insights on the matter (check [this blog
-post](https://github.com/Kindelia/Kind/blob/master/blog/1-beyond-inductive-datatypes.md)),
-Kind isn't capable of expressing the most important HoTT features. We could add
-these inspired on Cubical Type Theory, but this would increase the size of
-Kind's core by a few multipliers, which we don't want to. In special, the
-`transp` function seems to account for most of that complexity. Investigating
-how to add HoTT features without blowing up the core size is an interesting line
-of research.
+Kind-era notes on this live in `FOUNDATIONS.md`. Sure isn't capable of
+expressing the most important HoTT features. We could add these inspired on
+Cubical Type Theory, but this would increase the size of Sure's core by a few
+multipliers, which we don't want to. In special, the `transp` function seems to
+account for most of that complexity. Investigating how to add HoTT features
+without blowing up the core size is an interesting line of research.
 
 ## Extend CONTRIBUTE.md
 

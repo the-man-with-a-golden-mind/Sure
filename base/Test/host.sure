@@ -1,0 +1,48 @@
+// Bounded host/runtime checks for CI. Not Test.suite / Test.main.
+Test.host.winner(e: Either<String, String>): String
+  case e {
+    left: e.value
+    right: e.value
+  }
+
+// Loser of the race is cancelled. Release still runs on a fresh abort scope.
+Test.host.bracket: IO<String>
+  IO.race<String, String, String>(
+    IO.bracket<String, String>(
+      IO.end<String>("r"),
+      (x) IO {
+        get _ = IO.sleep(2000)
+        return "USE"
+      },
+      (x) IO.print("RELEASED")
+    ),
+    IO {
+      get _ = IO.sleep(20)
+      return "DONE"
+    },
+    (w) IO.end<String>(Test.host.winner(w))
+  )
+
+Test.host: IO<Unit>
+  IO {
+    get o = Proc.exec("node", ["-e", "process.stdout.write('ok')"])
+    case o {
+      err: IO.print("Test.host fail")
+      ok:
+        open o.value
+        IO {
+          IO.print("Test.host " | o.value.stdout)
+          get nl = Proc.exec("node", ["-e", "process.stdout.write(process.argv[1])", "a\nb"])
+          case nl {
+            err: IO.print("Test.host nl fail")
+            ok:
+              open nl.value
+              IO {
+                IO.print("Test.host nl " | nl.value.stdout)
+                get e = Test.host.bracket
+                IO.print(e)
+              }
+          }
+        }
+    }
+  }

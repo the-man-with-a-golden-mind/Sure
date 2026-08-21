@@ -41,16 +41,15 @@ sure help env | cfg | ssr | ui | web
 | `sure bench <Term>` | Time type-check |
 | `sure Sure.Web.bench --run` | Time Html / Ui / Ssr / Sheet at runtime |
 | `sure fmt <Term>` | Pretty-print |
-| `sure test` / `sure --test` | Prover + `Test.main` + prove-edge |
+| `sure test` / `sure --test` | Bounded theorems, checks, `Main --run`, `Test.host` (argv + cancellation-safe `IO.bracket`), prove-edges. Not `Prove.all` or `Test.main`. |
 | `sure cover` / `sure cover --fail` | Textual public-API mention coverage (need 90%; not branch coverage) |
 | `sure repl` | `:help :quit :check :prove :type :goal :fill :debug :norm :run :docs` |
-| `sure lsp` | Language server (regex/text today; not a compiler AST) |
+| `sure lsp` | Language server. Format, symbols, rename, references, highlight, and completion use `compiler.parse_document` / `compiler.idents`. |
 | `sure agent` | JSON-RPC compiler-as-tool |
 | `sure add` / `remove` | Dependencies |
 | `sure install` | Materialize `sure.lock` pins (git rev, not latest HEAD) |
 | `sure expose <Module>` | Package public modules |
 | `sure --lib` | Bounded checks (not `Prove.all`) |
-| `sure test` | Bounded theorems + checks + `Main --run` + prove-edges |
 
 A failing test or a false equality exits **1**. There is no silent success.
 
@@ -60,6 +59,8 @@ A failing test or a false equality exits **1**. There is no silent success.
 |---|---|
 | `SURE_BASE` / `KIND_BASE` | Stdlib directory (`…/base`) |
 | `SURE_PATH` / `KIND_PATH` | Extra `:`-separated `.sure` dirs |
+| `SURE_CACHE=0` | Skip the definition cache (bootstrap sets this) |
+| `SURE_NODE` | Node binary for `./bin/sure` |
 | `SURE_RUNTIME=bun` | Same as `--bun` |
 | `SURE_DEBUG` | `off` \| `error` \| `info` \| `trace` |
 | `SURE_DEBUG_OPT` | `host` \| `term` \| `holes` \| `qc` \| `all` |
@@ -81,10 +82,10 @@ Empty line is ignored. `:xyz` is not a command. `:check` with no name fails.
 ```bash
 ./bin/sure --lib
 ./bin/sure --test
-./bin/sure Prove.all
-./bin/sure Test.main --run
 ./bin/sure cover --fail
 ```
+
+`sure test` is the bounded CI suite. `Prove.all` and `Test.main` remain in the tree for local unbounded runs (`sure Prove.all`, `sure Test.main --run`) and are not CI.
 
 Run these from a tree that contains `base/` (or set `SURE_BASE`).
 

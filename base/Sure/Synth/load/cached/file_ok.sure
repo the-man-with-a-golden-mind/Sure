@@ -1,0 +1,8 @@
+// Relative paths stay in the current tree. Absolute paths must sit under `here`.
+Sure.Synth.load.cached.file_ok(file: String, here: String): Bool
+  if String.is_empty(file) then false
+  else if String.includes(file, "/../") then false
+  else if String.starts_with(file, "../") then false
+  else if String.starts_with(file, "/") then
+    Bool.or(String.eql(file, here), String.starts_with(file, here | "/"))
+  else true

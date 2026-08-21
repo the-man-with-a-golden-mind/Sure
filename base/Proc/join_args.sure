@@ -1,2 +1,5 @@
 Proc.join_args(xs: List<String>): String
-  String.join("\n", xs)
+  case xs {
+    nil: ""
+    cons: Proc.pack(xs.head) | Proc.join_args(xs.tail)
+  }

@@ -1,0 +1,2 @@
+Sure.Synth.load.cached.file_ok.dotdot: Sure.Synth.load.cached.file_ok("../Nat.sure", "/repo") == false
+  refl

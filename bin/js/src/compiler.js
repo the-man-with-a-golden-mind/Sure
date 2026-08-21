@@ -939,6 +939,60 @@ function symbols(src) {
   return out;
 }
 
+function ident_at(src, offset) {
+  src = String(src || "");
+  offset = Number(offset) || 0;
+  if (offset < 0) offset = 0;
+  var toks = idents(src);
+  for (var i = 0; i < toks.length; i++) {
+    if (offset >= toks[i].start && offset <= toks[i].end) return toks[i];
+  }
+  return null;
+}
+
+function idents(src) {
+  src = String(src || "");
+  var out = [];
+  var i = 0;
+  var line = 0;
+  var col = 0;
+  function bump(n) {
+    var j = 0;
+    while (j < n && i + j < src.length) {
+      if (src[i + j] === "\n") { line++; col = 0; }
+      else col++;
+      j++;
+    }
+    i += n;
+  }
+  while (i < src.length) {
+    if (src[i] === "\"" || src[i] === "'") {
+      var e = when_skip_string(src, i);
+      bump(e - i);
+      continue;
+    }
+    if (src[i] === "/" && src[i + 1] === "/") {
+      var n = i;
+      while (n < src.length && src[n] !== "\n") n++;
+      bump(n - i);
+      continue;
+    }
+    if (when_is_ident(src, i)) {
+      var start = i;
+      var sl = line;
+      var sc = col;
+      var j = i + 1;
+      while (when_is_ident_cont(src, j)) j++;
+      var name = src.slice(start, j);
+      out.push({name: name, start: start, end: j, line: sl, character: sc});
+      bump(j - i);
+      continue;
+    }
+    bump(1);
+  }
+  return out;
+}
+
 globalThis.__surePrepare = function(file, code) {
   return prepare_source(String(file || ""), String(code || ""));
 };
@@ -954,6 +1008,8 @@ module.exports = {
   format_source: format_source,
   parse_document: parse_document,
   symbols: symbols,
+  idents: idents,
+  ident_at: ident_at,
   get_map: get_map,
   map_offset: map_offset,
   mod_resolve: mod_resolve,

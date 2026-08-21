@@ -16,14 +16,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HigherOrderCO-archive/Kind-Legacy.git"
+    "url": "git+https://github.com/the-man-with-a-golden-mind/Sure.git"
   },
   "author": "Victor Maia",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Kindelia/Kind/issues"
+    "url": "https://github.com/the-man-with-a-golden-mind/Sure/issues"
   },
-  "homepage": "https://github.com/Kindelia/Kind#readme",
+  "homepage": "https://github.com/the-man-with-a-golden-mind/Sure#readme",
   "dependencies": {
     "formcore-js": "file:../../vendor/formcore-js"
   }

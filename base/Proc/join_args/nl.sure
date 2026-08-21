@@ -1,0 +1,2 @@
+Proc.join_args.nl: Proc.join_args(["a\nb", "c"]) == "3\na\nb1\nc"
+  refl

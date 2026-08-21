@@ -45,8 +45,8 @@ the program compiles — not a separate tool.
    real proof (`Equal.rewrite`, induction, `Prove.sym` / `trans` / `cong`).
 3. Compilation (`sure prove`, `sure check`, `sure build`) type-checks those
    terms. A mismatch is a failed proof (`proof_obligation` in JSON).
-4. People list theorems in `sure.json` and keep them in `src/Spec.kind`.
-5. AI uses `kind.prove` (`sure agent --client prove <Term|code>`). The checker
+4. People list theorems in `sure.json` and keep them in `src/Spec.sure`.
+5. AI uses `sure.prove` (`sure agent --client prove <Term|code>`). The checker
    is the source of truth: propose → prove → repair.
 
 `Example.Spec` and `Sure.Prove.all` are the language demos of this loop.

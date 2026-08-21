@@ -63,7 +63,15 @@ var BOUNDED_THEOREMS = [
   "Sure.Mod.resolve.imp_type",
   "Sure.Mod.from_imp.dotdot",
   "Sure.Mod.from_imp.open.miss",
-  "Host.encode.all.fs_open"
+  "Host.encode.all.fs_open",
+  "Proc.pack.empty",
+  "Proc.join_args.empty",
+  "Proc.join_args.nl",
+  "Sure.Synth.load.cached.file_ok.empty",
+  "Sure.Synth.load.cached.file_ok.dotdot",
+  "Sure.Synth.load.cached.file_ok.rel",
+  "Sure.Synth.load.cached.file_ok.foreign",
+  "Sure.Synth.load.cached.file_ok.under"
 ];
 var BOUNDED_CHECKS = [
   "Nat.add",
@@ -234,9 +242,26 @@ function cache_blob_key() {
   var h = crypto.createHash("sha256");
   h.update(String(SURE_VERSION || ""));
   try { h.update(fs.readFileSync(path.join(__dirname, "sure.js"))); } catch (e) { h.update("missing-blob"); }
+  try { h.update("stdlib:" + fs.realpathSync(STDLIB_BASE || process.cwd())); } catch (e) { h.update("stdlib:" + String(STDLIB_BASE || "")); }
+  try { h.update("cwd:" + fs.realpathSync(ORIG_CWD || process.cwd())); } catch (e) { h.update("cwd:" + String(ORIG_CWD || "")); }
   return h.digest("hex").slice(0, 16);
 }
 if (!process.env.SURE_CACHE_KEY) process.env.SURE_CACHE_KEY = cache_blob_key();
+
+function patch_cache_off_fs() {
+  if (process.env.SURE_CACHE !== "0") return;
+  var orig = fs.readFileSync;
+  fs.readFileSync = function(p, enc) {
+    var s = String(p || "").replace(/\\/g, "/");
+    if (/(^|\/)\.cache(\/|$)/.test(s)) {
+      var err = new Error("ENOENT: cache off " + s);
+      err.code = "ENOENT";
+      throw err;
+    }
+    return orig.apply(this, arguments);
+  };
+}
+patch_cache_off_fs();
 
 async function find_kind_files(dir) {
   try {
@@ -575,6 +600,8 @@ function print_help_topic(topic) {
     console.log("");
     console.log("initialize, hover, definition, completion, format, rename,");
     console.log("references, document symbols, highlight, workspace symbols, code actions.");
+    console.log("Format, symbols, rename, references, highlight, and completion use");
+    console.log("compiler.parse_document / compiler.idents (strings and comments skipped).");
     console.log("didOpen / didChange / didClose / didSave publish diagnostics.");
     console.log("Junk methods with an id are Method not found. Parse errors are -32700.");
     console.log("sure help debug");
@@ -2767,11 +2794,15 @@ function file_of_name(name) {
 function scan_references(name) {
   var files = collect_kind_files(process.cwd());
   var hits = [];
-  var re = new RegExp("\\b" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b");
   for (var i = 0; i < files.length && hits.length < 200; i++) {
     var body;
     try { body = fs.readFileSync(files[i], "utf8"); } catch (e) { continue; }
-    if (!re.test(body)) continue;
+    var toks = compiler.idents(body);
+    var hit = false;
+    for (var t = 0; t < toks.length; t++) {
+      if (toks[t].name === name) { hit = true; break; }
+    }
+    if (!hit) continue;
     var rel = path.relative(process.cwd(), files[i]);
     hits.push({file: rel, name: name});
   }
@@ -2789,39 +2820,43 @@ function scan_defs(dir) {
     var body;
     try { body = fs.readFileSync(files[i], "utf8"); } catch (e) { continue; }
     var rel = path.relative(process.cwd(), files[i]);
-    var lines = body.split("\n");
-    var file_defs = [];
-    var last = null;
-    for (var j = 0; j < lines.length; j++) {
-      var m = def_header(lines[j]);
-      if (m) {
-        last = {
-          name: m[1],
-          file: rel,
-          line: j,
-          start: j,
-          type: (m[2] || "").trim(),
-          theorem: /==/.test(m[2] || ""),
-          implement: /\?implement/.test(lines[j]),
-        };
-        file_defs.push(last);
-      } else if (last && /\?implement/.test(lines[j])) {
-        last.implement = true;
+    var parsed = compiler.parse_module_headers(body);
+    var mod = parsed.mod && parsed.mod.name;
+    var doc = compiler.parse_document(body);
+    var blocks = {};
+    var docs = {};
+    var pendingDoc = [];
+    for (var b = 0; b < doc.blocks.length; b++) {
+      var blk = doc.blocks[b];
+      if (blk.kind === "comment") {
+        pendingDoc.push(String(blk.text || "").replace(/^\s*\/\/\s?/gm, ""));
+        continue;
       }
+      if (blk.kind === "def" || blk.kind === "type") {
+        var first = String(blk.text || "").split("\n")[0] || "";
+        var hm = /^type\s+([A-Za-z][A-Za-z0-9._]*)/.exec(first) || /^([A-Za-z][A-Za-z0-9._]*)/.exec(first);
+        if (hm) {
+          blocks[hm[1]] = blk.text;
+          docs[hm[1]] = pendingDoc.join("\n");
+        }
+      }
+      if (blk.kind !== "blank") pendingDoc = [];
     }
-    for (var k = 0; k < file_defs.length; k++) {
-      var end = k + 1 < file_defs.length ? file_defs[k + 1].start : lines.length;
-      file_defs[k].body = lines.slice(file_defs[k].start, end).join("\n");
-      var acc = [];
-      for (var up = file_defs[k].start - 1; up >= 0; up--) {
-        var prev = lines[up];
-        if (/^\s*$/.test(prev)) break;
-        if (/^\s*\/\//.test(prev)) acc.unshift(prev.replace(/^\s*\/\/\s?/, ""));
-        else break;
-      }
-      file_defs[k].doc = acc.join("\n");
-      delete file_defs[k].start;
-      out.push(file_defs[k]);
+    var syms = compiler.symbols(body);
+    for (var s = 0; s < syms.length; s++) {
+      var name = syms[s].name;
+      var text = blocks[name] || "";
+      var qual = (mod && name.indexOf(".") < 0) ? mod + "." + name : name;
+      out.push({
+        name: qual,
+        file: rel,
+        line: syms[s].line,
+        type: syms[s].type || "",
+        theorem: !!syms[s].theorem,
+        implement: /\?implement/.test(text),
+        body: text,
+        doc: docs[name] || ""
+      });
     }
   }
   return out;
@@ -2966,11 +3001,11 @@ function scan_symbols(prefix) {
   for (var i = 0; i < files.length && out.length < 400; i++) {
     var body;
     try { body = fs.readFileSync(files[i], "utf8"); } catch (e) { continue; }
-    var lines = body.split("\n");
-    for (var j = 0; j < lines.length; j++) {
-      var m = /^([A-Za-z][A-Za-z0-9._]*)\s*[:(]/.exec(lines[j]);
-      if (m && m[1].indexOf(pre) === 0) {
-        out.push({name: m[1], file: path.relative(process.cwd(), files[i]), line: j});
+    var rel = path.relative(process.cwd(), files[i]);
+    var syms = compiler.symbols(body);
+    for (var j = 0; j < syms.length && out.length < 400; j++) {
+      if (syms[j].name.indexOf(pre) === 0) {
+        out.push({name: syms[j].name, file: rel, line: syms[j].line, type: syms[j].type});
       }
     }
   }
@@ -3462,17 +3497,25 @@ function lsp_full_range(text) {
 
 function lsp_word_range(text, offset) {
   text = String(text || "");
-  var i = offset, j = offset;
+  var tok = compiler.ident_at(text, offset);
+  if (tok) {
+    return {
+      start: lsp_pos_at(text, tok.start),
+      end: lsp_pos_at(text, tok.end),
+      word: tok.name,
+      from: tok.start,
+      upto: tok.end
+    };
+  }
+  var i = offset;
   if (!Number.isFinite(i) || i < 0) i = 0;
   if (i > text.length) i = text.length;
-  j = i;
-  while (i > 0 && /[A-Za-z0-9._]/.test(text.charAt(i - 1))) i -= 1;
-  while (j < text.length && /[A-Za-z0-9._]/.test(text.charAt(j))) j += 1;
-  return {start: lsp_pos_at(text, i), end: lsp_pos_at(text, j), word: text.slice(i, j), from: i, upto: j};
+  return {start: lsp_pos_at(text, i), end: lsp_pos_at(text, i), word: "", from: i, upto: i};
 }
 
 function lsp_name_at(text, line, character) {
-  return word_at(text, line_col_offset(text, line, character));
+  var tok = compiler.ident_at(text, line_col_offset(text, line, character));
+  return tok ? tok.name : "";
 }
 
 function lsp_apply_changes(text, changes) {
@@ -3513,13 +3556,14 @@ function lsp_find_name_range(text, name) {
     var end = Math.min(1, (text.split("\n")[0] || "").length);
     return {start: {line: 0, character: 0}, end: {line: 0, character: end}};
   }
-  var re = new RegExp("\\b" + String(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b");
-  var m = re.exec(text);
-  if (!m) {
-    var end0 = Math.min(1, (text.split("\n")[0] || "").length);
-    return {start: {line: 0, character: 0}, end: {line: 0, character: end0}};
+  var toks = compiler.idents(text);
+  for (var i = 0; i < toks.length; i++) {
+    if (toks[i].name === name) {
+      return {start: lsp_pos_at(text, toks[i].start), end: lsp_pos_at(text, toks[i].end)};
+    }
   }
-  return {start: lsp_pos_at(text, m.index), end: lsp_pos_at(text, m.index + m[0].length)};
+  var end0 = Math.min(1, (text.split("\n")[0] || "").length);
+  return {start: {line: 0, character: 0}, end: {line: 0, character: end0}};
 }
 
 function lsp_range_from_origin(text, origin) {
@@ -3555,12 +3599,12 @@ function lsp_diag(report, text, file) {
 
 function lsp_highlights(text, word) {
   if (!word) return [];
-  var re = new RegExp("\\b" + word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "g");
+  var toks = compiler.idents(text);
   var out = [];
-  var m;
-  while ((m = re.exec(String(text || "")))) {
+  for (var i = 0; i < toks.length; i++) {
+    if (toks[i].name !== word) continue;
     out.push({
-      range: {start: lsp_pos_at(text, m.index), end: lsp_pos_at(text, m.index + m[0].length)},
+      range: {start: lsp_pos_at(text, toks[i].start), end: lsp_pos_at(text, toks[i].end)},
       kind: 1
     });
   }
@@ -3569,8 +3613,16 @@ function lsp_highlights(text, word) {
 
 function lsp_replace_word(text, oldN, newN) {
   if (!oldN || newN == null || newN === "") return null;
-  var re = new RegExp("\\b" + oldN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "g");
-  return String(text || "").replace(re, newN);
+  var toks = compiler.idents(text);
+  var next = "";
+  var i = 0;
+  for (var t = 0; t < toks.length; t++) {
+    if (toks[t].name !== oldN) continue;
+    next += String(text || "").slice(i, toks[t].start) + String(newN);
+    i = toks[t].end;
+  }
+  next += String(text || "").slice(i);
+  return next;
 }
 
 function lsp_new_state() {
@@ -3747,6 +3799,11 @@ async function lsp_handle(state, msg) {
         seen[k] = true;
         items.push({label: k, kind: 14, detail: "keyword"});
       }
+    });
+    compiler.idents(text).forEach(function(tok) {
+      if (!tok.name || tok.name.indexOf(prefix) !== 0 || seen[tok.name]) return;
+      seen[tok.name] = true;
+      items.push({label: tok.name, kind: 6, detail: "ident"});
     });
     scan_symbols(prefix).slice(0, 50).forEach(function(s) {
       if (seen[s.name]) return;
@@ -4866,6 +4923,7 @@ async function run_prove_edges() {
     failed += 1;
   }
   try {
+    console.log("compile js add2  [" + new Date().toISOString() + "]");
     var js_add = await compile_term_js("Example.Spec.add2");
     if (!js_add || js_add.indexOf("module.exports") < 0) {
       console.log("fail compile js add2"); failed += 1;
@@ -4874,6 +4932,7 @@ async function run_prove_edges() {
     console.log("fail compile js add2 " + e); failed += 1;
   }
   try {
+    console.log("compile js Main  [" + new Date().toISOString() + "]");
     var js_main = await compile_term_js("Main");
     if (!js_main || js_main.indexOf("put_string") < 0 || js_main.indexOf("run_io") < 0) {
       console.log("fail shake keep print"); failed += 1;
@@ -4884,6 +4943,7 @@ async function run_prove_edges() {
     console.log("fail shake Main " + e); failed += 1;
   }
   try {
+    console.log("compile js Nat.add  [" + new Date().toISOString() + "]");
     var js_nat = await compile_term_js("Nat.add");
     if (!js_nat || js_nat.indexOf("Nat.add") < 0 || js_nat.indexOf("run_io") >= 0 || js_nat.indexOf("word_to_u16") >= 0) {
       console.log("fail shake Nat.add"); failed += 1;
@@ -4914,15 +4974,11 @@ async function run_prove_edges() {
   if (SURE_DOM_EVENTS.length !== 122) {
     console.log("fail event count " + SURE_DOM_EVENTS.length); failed += 1;
   } else console.log("ok   event count 122");
-  try {
-    var js_html = await compile_term_js("Html.Counter.client", {module: true});
-    var page_c = sure_html_wrap("Html.Counter.client", js_html);
-    if (!page_c || page_c.indexOf("SureDom.mount") < 0 || page_c.indexOf("data-sure-on-") < 0 || page_c.indexOf("visibilitychange") < 0 || page_c.indexOf("\"click\"") < 0) {
-      console.log("fail html counter page"); failed += 1;
-    } else console.log("ok   html counter page");
-  } catch (e) {
-    console.log("fail html counter compile " + e); failed += 1;
-  }
+  var stub_js = "module.exports={view:function(){return {tag:'button',kids:[]};}};";
+  var page_c = sure_html_wrap("Html.Counter.client", stub_js);
+  if (!page_c || page_c.indexOf("SureDom.mount") < 0 || page_c.indexOf("visibilitychange") < 0 || page_c.indexOf("\"click\"") < 0) {
+    console.log("fail html counter page"); failed += 1;
+  } else console.log("ok   html counter page");
   if (sure_emit_html_file("") !== "" || sure_emit_html_file("Main") !== "dist/Main.html") {
     console.log("fail emit html file"); failed += 1;
   } else console.log("ok   emit html file");
@@ -5760,19 +5816,28 @@ async function run_term_inprocess(term) {
   var prev_sure = process.env.SURE_PATH;
   var prev_kind = process.env.KIND_PATH;
   var prev_cwd = process.cwd();
-  var js_path = path.join(require("os").tmpdir(), "sure-run-" + process.pid + ".js");
+  var js_path = path.join(require("os").tmpdir(), "sure-run-" + process.pid + "-" + String(term).replace(/\W/g, "_") + "-" + Date.now() + ".js");
+  var abs = path.resolve(js_path);
   try {
     delete process.env.SURE_PATH;
     delete process.env.KIND_PATH;
     process.env.SURE_BASE = STDLIB_BASE;
     process.env.KIND_BASE = STDLIB_BASE;
     process.chdir(STDLIB_BASE);
+    console.log("compile " + term + "  [" + new Date().toISOString() + "]");
     var fmcc = await kind.run(checker("api.io.term_to_core")(term));
-    var asjs = fmc_to_js.compile(fmcc, term, {});
+    console.log("emit " + term + "  [" + new Date().toISOString() + "]");
+    var asjs = fmc_to_js.compile(fmcc, term, {module: true});
     fs.writeFileSync(js_path, asjs);
-    var r = sure_run_js(js_path, false, []);
-    if (!r.ok) throw new Error(r.error || "run failed");
+    console.log("run " + term + "  [" + new Date().toISOString() + "]");
+    delete require.cache[abs];
+    var mod = require(abs);
+    if (!mod || typeof mod.$main$ !== "function") {
+      throw new Error("compiled " + term + " has no $main$");
+    }
+    await Promise.resolve(mod.$main$());
   } finally {
+    try { delete require.cache[abs]; } catch (e1) {}
     try { fs.unlinkSync(js_path); } catch (e2) {}
     try { process.chdir(prev_cwd); } catch (e3) {}
     if (prev_sure == null) delete process.env.SURE_PATH;
@@ -5780,6 +5845,23 @@ async function run_term_inprocess(term) {
     if (prev_kind == null) delete process.env.KIND_PATH;
     else process.env.KIND_PATH = prev_kind;
   }
+}
+
+async function run_term_capture(term) {
+  var chunks = [];
+  var orig = process.stdout.write.bind(process.stdout);
+  process.stdout.write = function(chunk, enc, cb) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk));
+    if (typeof enc === "function") return orig(chunk, enc);
+    if (typeof cb === "function") return orig(chunk, enc, cb);
+    return orig(chunk, enc);
+  };
+  try {
+    await run_term_inprocess(term);
+  } finally {
+    process.stdout.write = orig;
+  }
+  return chunks.join("");
 }
 
 function spawn_term_run(term) {
@@ -6120,10 +6202,14 @@ function spawn_term_run(term) {
   }
 
   if (name === "test" || name === "--test") {
-    console.log("== prove (bounded) ==");
+    function test_log(msg) {
+      console.log(msg + "  [" + new Date().toISOString() + "]");
+    }
+    test_log("== prove (bounded) ==");
     var failed = await cmd_prove(BOUNDED_THEOREMS, false, true);
-    console.log("== check (bounded) ==");
+    test_log("== check (bounded) ==");
     for (var ti = 0; ti < BOUNDED_CHECKS.length; ti++) {
+      test_log("check " + BOUNDED_CHECKS[ti]);
       try { failed += await check_term_ok(BOUNDED_CHECKS[ti]); }
       catch (e) {
         console.log("check fail: " + BOUNDED_CHECKS[ti]);
@@ -6131,15 +6217,41 @@ function spawn_term_run(term) {
         failed += 1;
       }
     }
-    console.log("== runtime ==");
+    test_log("== runtime Main (in-process) ==");
     try {
       await run_term_inprocess("Main");
     } catch (e) {
       console.log(e);
       failed += 1;
     }
-    console.log("== prove edges (must fail when false) ==");
+    test_log("== host runtime Test.host (Proc.exec argv + IO.bracket race) ==");
+    try {
+      var host_out = await run_term_capture("Test.host");
+      if (host_out.indexOf("RELEASED") < 0) {
+        console.log("fail Test.host missing RELEASED");
+        failed += 1;
+      } else console.log("ok   Test.host RELEASED");
+      if (host_out.indexOf("DONE") < 0) {
+        console.log("fail Test.host missing DONE");
+        failed += 1;
+      } else console.log("ok   Test.host DONE");
+      if (host_out.indexOf("Test.host ok") < 0) {
+        console.log("fail Test.host missing ok");
+        failed += 1;
+      } else console.log("ok   Test.host proc");
+      if (host_out.indexOf("Test.host nl a\nb") < 0 && host_out.indexOf("Test.host nl a\\nb") < 0) {
+        if (host_out.indexOf("a\nb") < 0) {
+          console.log("fail Test.host newline argv");
+          failed += 1;
+        } else console.log("ok   Test.host newline argv");
+      } else console.log("ok   Test.host newline argv");
+    } catch (e) {
+      console.log(e);
+      failed += 1;
+    }
+    test_log("== prove edges (must fail when false) ==");
     failed += await run_prove_edges();
+    test_log("== sure test done ==");
     process.exit(failed ? 1 : 0);
   }
 

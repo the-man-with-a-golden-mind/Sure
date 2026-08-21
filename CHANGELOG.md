@@ -18,9 +18,12 @@ Truth pass (audit):
 - Bootstrap writes `sure.js` atomically from `Sure.api.export`, injects the prepare hook as a fixed point, and uses `process.execPath` (no shell). Stage-two loads `Defs.read` on a `module Hello` snippet and requires `Hello.greet`. Full compile-twice regeneration is unbounded and is not CI.
 - Live checker elaborates `module` / `import` in `Sure.Parser.file`. The host does not rewrite identifiers. `import M exposing (..)` loads `M` then resolves short names from defs. `when` / HTML / `admit` still expand in the host. `Sure.Mod.from_imp` keeps `import Boxes exposing (Boxes)` as `Boxes`, not `Boxes.Boxes`.
 - `sure.lock` stores `sha256` of the installed tree. `sure install` fails on mismatch. Missing hash is recorded, not a protocol error.
-- `IO.bracket` always runs `release` (JS `finally`). `File.bracket` uses it so a cancelled `use` still closes the fd.
-- `sure test` is a bounded suite (listed theorems, checks, `Main --run`, prove-edges). It does not type-check `Prove.all` or run `Test.main`.
+- `IO.bracket` always runs `release` on a **fresh** AbortController, so a cancelled `use` still runs user `release`. `File.bracket` uses it.
+- `sure test` is a bounded suite (listed theorems, checks, `Main --run`, `Test.host`, prove-edges). It does not type-check `Prove.all` or run `Test.main`. `Test.host` is the CI host/runtime slice: packed argv (including newlines) and an `IO.race` of `IO.bracket` that must print `RELEASED`.
+- Checker cache keys include the canonical stdlib and project realpaths. Records whose file is outside the current root, or that contain `..`, miss. Cache load is a worklist plus `IO.yield` (no recursive dep explosion). Bootstrap and `SURE_CACHE=0` skip `.cache` at the host.
+- `Proc.join_args` / host argv parse are length-prefixed. An argument may contain newlines. Env is packed key/value pairs, not `;` / `=`.
 - Module qualification matches `Sure.Mod.resolve` / `Sure.Parser.file.rewrite` (locals, then `Module.name`, then import exposing).
+- LSP rename, references, highlight, completion, and symbols use `compiler.parse_document` / `compiler.idents` / `compiler.symbols`. Strings and comments are not identifiers.
 
 `when { pred: val ... } default rest` is the table form of nested `if` (first true wins). `case` stays constructor matching. `switch f { key: v }` stays one `A -> Bool`. `String.ok(s, banned)` is nonempty and none of those substrings. `String.has_none` is the same without the empty check.
 

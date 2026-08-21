@@ -1,0 +1,2 @@
+Proc.pack.empty: Proc.pack("") == "0\n"
+  refl

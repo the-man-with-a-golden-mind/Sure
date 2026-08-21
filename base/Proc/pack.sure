@@ -1,0 +1,3 @@
+// Length-prefixed string. Newlines in the payload stay in the payload.
+Proc.pack(s: String): String
+  Nat.show(String.length(s)) | "\n" | s

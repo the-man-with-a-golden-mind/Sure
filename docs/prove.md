@@ -119,7 +119,7 @@ Test.unit("match junk method",
     Http.App.match(Http.Method.get, "/", Http.Server.Req.new("", "NOPE", "/", "", ""))), true))
 ```
 
-`sure test` runs the prover, then `Test.main`, then prove-edge cases. A failing unit or a false equality exits 1.
+`sure test` runs the bounded prover list, bounded checks, `Main`, `Test.host` (host/runtime slice of `Test.main`), then prove-edge cases. It does not run `Prove.all` or `Test.main`. A failing unit or a false equality exits 1.
 
 ## AI loop
 

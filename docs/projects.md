@@ -17,7 +17,7 @@ A Sure project is a directory with `sure.json` and `src/*.sure`.
 }
 ```
 
-`type` is `application` or `package`. `sure.lock` pins git revisions and a `sha256` of the installed tree; `sure install` checks out those pins and fails on a hash mismatch. Empty lock entries are `{}`. `kind.json` is still read. The incremental emit cache hashes the compiler blob, `compiler.js`, host schema, FormCore, stdlib, lockfile, every `source-directories` entry, and transitive dependency sources. Checked definitions are stored as one `.cache/<name>` record keyed by source hash and `SURE_CACHE_KEY` (blob fingerprint). Empty and junk records are a miss. `module` / `import` are elaborated by `Sure.Parser.file`. The host only expands `when`, HTML, `admit`, and `import M exposing (..)` into an explicit list.
+`type` is `application` or `package`. `sure.lock` pins git revisions and a `sha256` of the installed tree; `sure install` checks out those pins and fails on a hash mismatch. Empty lock entries are `{}`. `kind.json` is still read. The incremental emit cache hashes the compiler blob, `compiler.js`, host schema, FormCore, stdlib, lockfile, every `source-directories` entry, and transitive dependency sources. Checked definitions are stored as one `.cache/<name>` record keyed by source hash and `SURE_CACHE_KEY` (blob fingerprint plus canonical stdlib and project realpaths). Records whose file is outside the current root, or that contain `..`, miss. Empty and junk records are a miss. Bootstrap sets `SURE_CACHE=0`. `module` / `import` are elaborated by `Sure.Parser.file`. The host only expands `when`, HTML, and `admit`.
 
 ## Scaffold
 

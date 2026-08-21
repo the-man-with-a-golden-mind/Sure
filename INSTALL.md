@@ -55,11 +55,11 @@ kind-scm Main --run
 ## Checks that do not load App/ or User/
 
 ```bash
-./bin/sure --lib    # prelude + Prove.all (type checker is the prover)
-./bin/sure --test   # prove Prove.all, then run Test.main (exits 1 on failure)
-./bin/sure Prove.all
-./bin/sure Test.main --run
+./bin/sure --lib    # bounded prelude checks (not Prove.all)
+./bin/sure --test   # bounded theorems, checks, Main, Test.host, prove-edges
 ```
+
+`Prove.all` and `Test.main` are unbounded and are not CI. Run them locally with `sure Prove.all` and `sure Test.main --run`.
 
 `sure App/` and `sure User/` still work when you ask for them.
 

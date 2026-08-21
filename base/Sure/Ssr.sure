@@ -69,7 +69,13 @@ Sure.Ssr.hdr_redirect(url: String): String
   Sure.Ssr.hdr(Sure.Ssr.ctype.text) | "\nLocation: " | url
 
 Sure.Ssr.document(title: String, body: DOM): String
-  "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>" | Html.escape(title) | "</title></head><body>" | DOM.render(body) | "</body></html>"
+  "<!DOCTYPE html><html data-theme=\"light\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>"
+  | Html.escape(title)
+  | "</title><script src=\"https://cdn.tailwindcss.com\"></script>"
+  | "<link href=\"https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css\" rel=\"stylesheet\" type=\"text/css\">"
+  | "</head><body class=\"bg-base-200\">"
+  | DOM.render(body)
+  | "</body></html>"
 
 Sure.Ssr.sse_script(path: String): String
   if Bool.not(Sure.Ssr.ok_url(path)) then ""

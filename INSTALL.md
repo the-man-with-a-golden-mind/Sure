@@ -110,7 +110,7 @@ Compile-time proofs:
 
 A well-typed **completed** `a == b` term is a proof the program computes that way. `_` and `admit` are not proofs. `sure prove` reports `"proved": true` only when every requested theorem is a completed proposition. `sure install` checks out `sure.lock` revisions; it does not clone latest HEAD.
 
-`Task.par_sleep` / `Task.race_sleep` overlap on Node. WebSocket is a typed API; the JS host does the RFC 6455 handshake and masked frames over TCP/TLS without a `ws` package. `Worker.run` uses Node `worker_threads` or a Bun `Worker`; values are JSON. `Db.connect("suremem:app")` is an in-process map; `surefile:app.json` persists JSON. There is no Postgres stub. Generated HTML inlines CSS (no Tailwind/DaisyUI CDN).
+`Task.par_sleep` / `Task.race_sleep` overlap on Node. WebSocket is a typed API; the JS host does the RFC 6455 handshake and masked frames over TCP/TLS without a `ws` package. `Worker.run` uses Node `worker_threads` or a Bun `Worker`; values are JSON. `Db.connect("suremem:app")` is an in-process map; `surefile:app.json` persists JSON. There is no Postgres stub. Generated HTML loads Tailwind and daisyUI.
 
 ## Versions
 

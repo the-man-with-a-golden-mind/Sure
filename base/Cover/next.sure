@@ -284,6 +284,12 @@ Cover.next.cfg_merge_map: Sure.Cfg.merge_map(Map.new<JSON>, Map.new<JSON>) == Ma
 Cover.next.ssr_document_empty: String.starts_with(Sure.Ssr.document("", Html.text("")), "<!DOCTYPE html>") == true
   refl
 
+Cover.next.ssr_document_tw: String.includes(Sure.Ssr.document("", Html.text("")), "cdn.tailwindcss.com") == true
+  refl
+
+Cover.next.ssr_document_daisy: String.includes(Sure.Ssr.document("", Html.text("")), "daisyui@4.12.23") == true
+  refl
+
 Cover.next.io_random: IO.random(1) == IO {
     get seed = IO.get_time
     let seed = Nat.random(seed)

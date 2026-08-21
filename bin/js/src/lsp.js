@@ -434,10 +434,47 @@ async function lsp_handle(state, msg) {
     var next = lsp_replace_word(text, off, String(newN));
     if (next == null) { error(-32602, "need name"); return {state: state, out: out}; }
     state.docs[uri] = next;
-    result({documentChanges: [{
+    var changes = [{
       textDocument: {uri: uri, version: td.version == null ? null : td.version},
       edits: [{range: lsp_full_range(text), newText: next}]
-    }]});
+    }];
+    var infoR0 = compiler.ident_bindings(text);
+    var atR0 = compiler.ident_at(text, off);
+    var isGlobal = false;
+    if (atR0) {
+      for (var gi = 0; gi < infoR0.toks.length; gi++) {
+        if (infoR0.toks[gi].start === atR0.start && infoR0.bind_of[gi] === -1) { isGlobal = true; break; }
+      }
+    }
+    if (isGlobal) {
+      var parsedM = compiler.parse_module_headers(text);
+      var qual = (parsedM.mod && parsedM.mod.name && name.indexOf(".") < 0)
+        ? parsedM.mod.name + "." + name : name;
+      var names = [name];
+      if (qual !== name) names.push(qual);
+      var seenF = {};
+      seenF[uri] = true;
+      for (var ni = 0; ni < names.length; ni++) {
+        var refs = scan_references(names[ni]);
+        for (var ri = 0; ri < refs.length; ri++) {
+          var fp = path.resolve(process.cwd(), refs[ri].file);
+          var u2 = lsp_path_to_uri(fp);
+          if (seenF[u2]) continue;
+          seenF[u2] = true;
+          var body;
+          try { body = fs.readFileSync(fp, "utf8"); } catch (e) { continue; }
+          var edited = body;
+          edited = compiler.rename_global(edited, name, String(newN));
+          if (qual !== name) edited = compiler.rename_global(edited, qual, parsedM.mod.name + "." + String(newN));
+          if (edited === body) continue;
+          changes.push({
+            textDocument: {uri: u2, version: null},
+            edits: [{range: lsp_full_range(body), newText: edited}]
+          });
+        }
+      }
+    }
+    result({documentChanges: changes});
     return {state: state, out: out};
   }
   if (method === "textDocument/formatting") {

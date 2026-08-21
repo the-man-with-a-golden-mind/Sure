@@ -955,12 +955,31 @@ function ident_bindings(src) {
   var i = 0;
   var t = 0;
   var expectBinder = false;
+  var paren = 0;
+  var lastParen = -1;
+  var parenIdent = [];
   function push() { stack.push(Object.create(stack[stack.length - 1])); }
   function pop() { if (stack.length > 1) stack.pop(); }
   function bind(name, tokIndex) {
     var sc = Object.create(stack[stack.length - 1]);
     sc[name] = tokIndex;
     stack[stack.length - 1] = sc;
+  }
+  function prev_nonspace(idx) {
+    var k = idx - 1;
+    while (k >= 0 && (src[k] === " " || src[k] === "\t" || src[k] === "\n" || src[k] === "\r")) k--;
+    return k;
+  }
+  function ident_before(idx) {
+    var k = prev_nonspace(idx);
+    return k >= 0 && /[A-Za-z0-9._]/.test(src[k]);
+  }
+  function looks_param(tok) {
+    var k = tok.end;
+    while (k < src.length && (src[k] === " " || src[k] === "\t")) k++;
+    if (src[k] === ":") return true;
+    if ((src[k] === ")" || src[k] === ",") && lastParen >= 0 && !ident_before(lastParen)) return true;
+    return false;
   }
   while (i <= src.length && t < toks.length) {
     if (i >= src.length) break;
@@ -977,12 +996,36 @@ function ident_bindings(src) {
     }
     if (src[i] === "{") { push(); expectBinder = false; i++; continue; }
     if (src[i] === "}") { pop(); expectBinder = false; i++; continue; }
+    if (src[i] === "(") {
+      paren++;
+      lastParen = i;
+      parenIdent.push(ident_before(i));
+      expectBinder = false;
+      i++;
+      continue;
+    }
+    if (src[i] === ")") {
+      if (paren > 0) paren--;
+      parenIdent.pop();
+      lastParen = -1;
+      for (var p = i - 1; p >= 0; p--) {
+        if (src[p] === "(") { lastParen = p; break; }
+        if (src[p] === ")") break;
+      }
+      expectBinder = false;
+      i++;
+      continue;
+    }
     if (toks[t].start === i) {
       var name = toks[t].name;
       if (name === "get" || name === "let") {
         expectBinder = true;
         bind_of[t] = -1;
       } else if (expectBinder) {
+        bind(name, t);
+        bind_of[t] = t;
+        expectBinder = false;
+      } else if (paren > 0 && name.indexOf(".") < 0 && looks_param(toks[t])) {
         bind(name, t);
         bind_of[t] = t;
         expectBinder = false;
@@ -1030,6 +1073,25 @@ function rename_ident(src, offset, newName) {
   }
   next += src.slice(p);
   return next;
+}
+
+function rename_global(src, oldName, newName) {
+  src = String(src || "");
+  oldName = String(oldName || "");
+  newName = String(newName || "");
+  if (!oldName || !newName) return src;
+  var info = ident_bindings(src);
+  var next = "";
+  var p = 0;
+  var hit = false;
+  for (var i = 0; i < info.toks.length; i++) {
+    if (info.toks[i].name !== oldName || info.bind_of[i] !== -1) continue;
+    next += src.slice(p, info.toks[i].start) + newName;
+    p = info.toks[i].end;
+    hit = true;
+  }
+  if (!hit) return src;
+  return next + src.slice(p);
 }
 
 function ident_at(src, offset) {
@@ -1105,6 +1167,7 @@ module.exports = {
   ident_at: ident_at,
   ident_bindings: ident_bindings,
   rename_ident: rename_ident,
+  rename_global: rename_global,
   get_map: get_map,
   map_offset: map_offset,
   mod_resolve: mod_resolve,

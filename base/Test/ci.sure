@@ -11,7 +11,15 @@ Test.ci.suite: Test
     Test.unit("guard ok", Test.bool(Outcome.is_ok<String, Unit>(Outcome.guard<String>(true, "x")), true)),
     Test.unit("map_err ok", Test.bool(
       Outcome.is_ok<String, Nat>(Outcome.map_err<Nat, String, Nat>(Outcome.ok<Nat, Nat>(1), (e) Nat.show(e))),
-      true))
+      true)),
+    Test.unit("path empty", Test.bool(Outcome.is_ok<Path.Err, Path>(Path.from_string("")), false)),
+    Test.unit("path ok", Test.bool(Outcome.is_ok<Path.Err, Path>(Path.from_string("foo.txt")), true)),
+    Test.unit("email empty", Test.bool(Outcome.is_ok<Email.Err, Email>(Email.from_string("")), false)),
+    Test.unit("list nil", Test.nat(List.length<Nat>([]), 0)),
+    Test.unit("not false", Test.bool(Bool.not(false), true)),
+    Test.unit("join_args empty", Test.string(Proc.join_args([]), "")),
+    Test.unit("file_ok rel", Test.bool(Sure.Synth.load.cached.file_ok("Nat.sure", "/repo"), true)),
+    Test.unit("file_ok dotdot", Test.bool(Sure.Synth.load.cached.file_ok("../x", "/repo"), false))
   ])
 
 Test.ci: IO<Unit>

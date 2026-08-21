@@ -1320,5 +1320,11 @@ module.exports = {
   mod_name_ok: mod_name_ok,
   mod_pkg_ok: mod_pkg_ok,
   mod_read_module: mod_read_module,
-  mod_read_import: mod_read_import
+  mod_read_import: mod_read_import,
+  mod_prefix: mod_prefix,
+  mod_allows: mod_allows,
+  mod_imports_allow: mod_imports_allow,
+  mod_is_exposed: mod_is_exposed,
+  mod_catalog_dir: mod_catalog_dir,
+  mod_owner: mod_owner
 };

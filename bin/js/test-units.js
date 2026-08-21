@@ -104,6 +104,8 @@ var mount = emit.sure_dom_mount_src();
 check("mount patch", mount.indexOf("surePatch") >= 0 && mount.indexOf("sureScheduleMake") >= 0);
 check("mount no error", mount.indexOf('"error"') < 0 && mount.indexOf("visibilitychange") < 0);
 check("wrap no cdn", emit.sure_html_wrap("Main", "module.exports={};").indexOf("cdn.tailwindcss.com") < 0);
+var patchSkip = dom_patch.surePatch({innerHTML: "", __sureHtml: "<p>x</p>"}, "<p>x</p>", {createElement: function(){ return {}; }});
+check("patch skip unchanged", patchSkip.skipped === true);
 
 // dual-run ReScript if present
 function loadRes(name) {
@@ -119,6 +121,10 @@ if (manRes && manRes.decodeManifest) {
   var b = JSON.stringify(manRes.decodeManifest(""));
   check("dual manifest empty", manRes.decodeManifest("").error === "empty" || (manRes.decodeManifest("").TAG === 1));
 } else check("dual manifest skip", true);
+var pathRes = loadRes("PathSafe.res.js");
+if (pathRes && pathRes.sureEmitSafe) {
+  check("dual path safe", pathRes.sureEmitSafe("Excel.client") === path_safe.sureEmitSafe("Excel.client") && pathRes.sureEmitSafe("../x") === false && pathRes.sureRelSafe("src/A.sure") === true && pathRes.sureRelSafe("../x") === false);
+} else check("dual path safe skip", true);
 var protoRes = loadRes("WorkspaceProtocol.res.js");
 if (protoRes && protoRes.namesOf) {
   check("dual protocol names", protoRes.namesOf({entry: "Main", theorems: ["T"]}).indexOf("Main") >= 0);

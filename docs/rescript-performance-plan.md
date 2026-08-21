@@ -1,6 +1,6 @@
 # Sure ReScript and performance plan
 
-Status: implemented in tree (Milestones 0–4, Wave 1 facades, Wave 3 identity, Wave 4 extracts). `main.js` is the composition/CLI root over extracted modules (`cli_help`, `cli_debug`, `scan`, `run_host`, `workspace`, `protocol`, `cache_store`, `fingerprint`).  
+Status: implemented in tree (Milestones 0–6 host work). ReScript go/stop: keep expanding **pure** modules (`FingerprintPure`, `PathSafe`). Stop JSON/decoder ports that pull `rescript/lib` (`ManifestModel`, `WorkspaceProtocol`) until they compile without a runtime dependency. `main.js` is the CLI composition root over extracted modules.  
 Baseline: `da134d51` (`Batch the checker, cache only asked names, and speed Excel.`)
 
 ## Outcome

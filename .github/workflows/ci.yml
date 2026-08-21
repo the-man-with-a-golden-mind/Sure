@@ -39,6 +39,8 @@ jobs:
           node --stack-size=10000 bin/js/src/main.js fmt examples/hello/src/Hello.sure | grep -q 'module Hello'
       - name: Tooling units (cache, protocol, scheduler, patch)
         run: node bin/js/test-units.js
+      - name: LSP identity fixtures
+        run: node bin/js/test-lsp-identity.js
       - name: Bounded test
         run: node --stack-size=10000 bin/js/src/main.js test
       - name: UI page harness
@@ -46,6 +48,29 @@ jobs:
       - name: Test.main (Test.ci.suite + Test.host)
         timeout-minutes: 3
         run: node --stack-size=10000 bin/js/src/main.js Test.main --run
+      - name: Coverage floor
+        run: node bin/js/src/cover.js --fail
+      - name: npm pack dry-run
+        run: npm pack --dry-run
+      - name: ReScript generated JS drift
+        run: |
+          npm install --prefix bin/js
+          npx --prefix bin/js rescript
+          git diff --exit-code -- bin/js/src/*.res.js
+
+  js18:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - name: Install JS CLI deps
+        run: npm install --omit=dev --prefix bin/js
+      - name: Version on Node 18
+        run: node --stack-size=10000 bin/js/src/main.js --version
+      - name: Units on Node 18
+        run: node bin/js/test-units.js && node bin/js/test-lsp-identity.js
 
   perf:
     runs-on: ubuntu-latest
@@ -63,7 +88,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sure-perf
-          path: bin/js/perf/last.json
+          path: |
+            bin/js/perf/last.json
+            bin/js/perf/baseline.json
 
   bun-emit:
     runs-on: ubuntu-latest

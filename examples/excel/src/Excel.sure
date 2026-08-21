@@ -542,14 +542,22 @@ bench.go(n: Nat, m: Map<String>): Map<String>
     succ: bench.go(n.pred, cell_set(n.pred, 0, "x", m))
   }
 
-bench: IO<Unit>
+bench.one(n: Nat): IO<Nat>
   IO {
     get t0 = IO.get_time
-    let filled = bench.go(Nat.read("1000"), Map.new<String>)
+    let filled = bench.go(n, Map.new<String>)
     let _g = cell_get(0, 0, filled)
     let _w = window(Nat.mul(row_h, Nat.read("80")))
-    let _r = resize_w(def_w, 0, Nat.read("200"))
     get t1 = IO.get_time
-    IO.print("excel-bench edits=1000 scroll=80 drag=200 ms=" | Nat.show(Nat.sub(t1, t0)))
+    return Nat.sub(t1, t0)
+  }
+
+bench: IO<Unit>
+  IO {
+    get a = bench.one(0)
+    get b = bench.one(Nat.read("100"))
+    get c = bench.one(Nat.read("1000"))
+    get d = bench.one(Nat.read("10000"))
+    IO.print("excel-bench edits=0,100,1000,10000 ms=" | Nat.show(a) | "," | Nat.show(b) | "," | Nat.show(c) | "," | Nat.show(d))
     return unit
   }

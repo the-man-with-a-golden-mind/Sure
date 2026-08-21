@@ -1,0 +1,3 @@
+IO.from_outcome.def<E: Type, A: Type>(o: Outcome<E, A>):
+  IO.from_outcome<E, A>(o) == IO.end<Outcome<E, A>>(o)
+  refl

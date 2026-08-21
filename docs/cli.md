@@ -60,7 +60,8 @@ A failing test or a false equality exits **1**. There is no silent success.
 | `SURE_BASE` / `KIND_BASE` | Stdlib directory (`…/base`) |
 | `SURE_PATH` / `KIND_PATH` | Extra `:`-separated `.sure` dirs |
 | `SURE_CACHE=0` | Skip the definition cache (bootstrap sets this) |
-| `SURE_NODE` | Node binary for `./bin/sure` |
+| `SURE_NODE` | Node 18+ binary for `./bin/sure` and `Proc.exec` in tests |
+| `SURE_TEST_GROUP` | Substring of a `Test.group` name; `Test.main` runs only matching groups |
 | `SURE_RUNTIME=bun` | Same as `--bun` |
 | `SURE_DEBUG` | `off` \| `error` \| `info` \| `trace` |
 | `SURE_DEBUG_OPT` | `host` \| `term` \| `holes` \| `qc` \| `all` |

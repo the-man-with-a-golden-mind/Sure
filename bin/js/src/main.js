@@ -71,7 +71,16 @@ var BOUNDED_THEOREMS = [
   "Sure.Synth.load.cached.file_ok.dotdot",
   "Sure.Synth.load.cached.file_ok.rel",
   "Sure.Synth.load.cached.file_ok.foreign",
-  "Sure.Synth.load.cached.file_ok.under"
+  "Sure.Synth.load.cached.file_ok.under",
+  "Outcome.map_err.ok",
+  "Outcome.map_err.err",
+  "Outcome.guard.ok",
+  "Outcome.guard.err",
+  "IO.from_outcome.def",
+  "IO.bind_ok.err",
+  "IO.bind_ok.ok",
+  "Proc.env.pack.empty",
+  "Proc.env.pack.one"
 ];
 var BOUNDED_CHECKS = [
   "Nat.add",
@@ -247,6 +256,7 @@ function cache_blob_key() {
   return h.digest("hex").slice(0, 16);
 }
 if (!process.env.SURE_CACHE_KEY) process.env.SURE_CACHE_KEY = cache_blob_key();
+if (!process.env.SURE_NODE) process.env.SURE_NODE = process.execPath;
 
 function patch_cache_off_fs() {
   if (process.env.SURE_CACHE !== "0") return;
@@ -3597,32 +3607,32 @@ function lsp_diag(report, text, file) {
   });
 }
 
-function lsp_highlights(text, word) {
-  if (!word) return [];
-  var toks = compiler.idents(text);
+function lsp_highlights(text, offset) {
+  var at = compiler.ident_at(text, offset);
+  if (!at) return [];
+  var info = compiler.ident_bindings(text);
+  var idx = -1;
+  for (var i = 0; i < info.toks.length; i++) {
+    if (info.toks[i].start === at.start) { idx = i; break; }
+  }
+  if (idx < 0) return [];
+  var bind = info.bind_of[idx];
   var out = [];
-  for (var i = 0; i < toks.length; i++) {
-    if (toks[i].name !== word) continue;
+  for (var i = 0; i < info.toks.length; i++) {
+    var same = bind === -1
+      ? (info.toks[i].name === at.name && info.bind_of[i] === -1)
+      : (info.bind_of[i] === bind);
+    if (!same) continue;
     out.push({
-      range: {start: lsp_pos_at(text, toks[i].start), end: lsp_pos_at(text, toks[i].end)},
+      range: {start: lsp_pos_at(text, info.toks[i].start), end: lsp_pos_at(text, info.toks[i].end)},
       kind: 1
     });
   }
   return out;
 }
 
-function lsp_replace_word(text, oldN, newN) {
-  if (!oldN || newN == null || newN === "") return null;
-  var toks = compiler.idents(text);
-  var next = "";
-  var i = 0;
-  for (var t = 0; t < toks.length; t++) {
-    if (toks[t].name !== oldN) continue;
-    next += String(text || "").slice(i, toks[t].start) + String(newN);
-    i = toks[t].end;
-  }
-  next += String(text || "").slice(i);
-  return next;
+function lsp_replace_word(text, offset, newN) {
+  return compiler.rename_ident(text, offset, newN);
 }
 
 function lsp_new_state() {
@@ -3821,10 +3831,11 @@ async function lsp_handle(state, msg) {
     return {state: state, out: out};
   }
   if (method === "textDocument/rename") {
+    var off = line_col_offset(text, pos.line, pos.character);
     name = lsp_name_at(text, pos.line, pos.character);
     var newN = params.newName;
     if (!name || newN == null || String(newN) === "") { error(-32602, "need name"); return {state: state, out: out}; }
-    var next = lsp_replace_word(text, name, String(newN));
+    var next = lsp_replace_word(text, off, String(newN));
     if (next == null) { error(-32602, "need name"); return {state: state, out: out}; }
     state.docs[uri] = next;
     result({documentChanges: [{
@@ -3847,22 +3858,41 @@ async function lsp_handle(state, msg) {
     return {state: state, out: out};
   }
   if (method === "textDocument/documentHighlight") {
-    name = lsp_name_at(text, pos.line, pos.character);
-    result(lsp_highlights(text, name));
+    result(lsp_highlights(text, line_col_offset(text, pos.line, pos.character)));
     return {state: state, out: out};
   }
   if (method === "textDocument/references") {
+    var offR = line_col_offset(text, pos.line, pos.character);
     name = lsp_name_at(text, pos.line, pos.character);
     if (!name) { result([]); return {state: state, out: out}; }
     var locs = [];
-    var refs = scan_references(name);
-    for (var ri = 0; ri < refs.length; ri++) {
-      var fp = path.resolve(process.cwd(), refs[ri].file);
-      var body;
-      try { body = fs.readFileSync(fp, "utf8"); } catch (e) { continue; }
-      lsp_highlights(body, name).forEach(function(h) {
-        locs.push({uri: lsp_path_to_uri(fp), range: h.range});
-      });
+    lsp_highlights(text, offR).forEach(function(h) {
+      locs.push({uri: uri, range: h.range});
+    });
+    var infoR = compiler.ident_bindings(text);
+    var atR = compiler.ident_at(text, offR);
+    var global = false;
+    if (atR) {
+      for (var bi = 0; bi < infoR.toks.length; bi++) {
+        if (infoR.toks[bi].start === atR.start && infoR.bind_of[bi] === -1) { global = true; break; }
+      }
+    }
+    if (global) {
+      var refs = scan_references(name);
+      for (var ri = 0; ri < refs.length; ri++) {
+        var fp = path.resolve(process.cwd(), refs[ri].file);
+        if (uri && lsp_path_to_uri(fp) === uri) continue;
+        var body;
+        try { body = fs.readFileSync(fp, "utf8"); } catch (e) { continue; }
+        var other = compiler.ident_bindings(body);
+        for (var oi = 0; oi < other.toks.length; oi++) {
+          if (other.toks[oi].name !== name || other.bind_of[oi] !== -1) continue;
+          locs.push({
+            uri: lsp_path_to_uri(fp),
+            range: {start: lsp_pos_at(body, other.toks[oi].start), end: lsp_pos_at(body, other.toks[oi].end)}
+          });
+        }
+      }
     }
     result(locs);
     return {state: state, out: out};
@@ -5230,6 +5260,16 @@ async function run_prove_edges() {
   if (hx.indexOf("<input type=kind class=\"x\"") < 0 || hx.indexOf("</input>") < 0 || hx.indexOf("List<Nat>") < 0 || hx.indexOf("n < m") < 0 || hx.indexOf("type={kind}") >= 0) {
     console.log("fail html expand " + hx); failed += 1;
   } else console.log("ok   html expand");
+  var fmt_io = compiler.format_source("demo: IO<Unit>\n  IO {\n    IO.print(greet)\n  }\n");
+  if (fmt_io.indexOf("    IO.print(greet)") < 0 || /IO \{\n  IO\.print/.test(fmt_io)) {
+    console.log("fail format nest " + JSON.stringify(fmt_io)); failed += 1;
+  } else console.log("ok   format nest");
+  var ren_src = "f: Nat\n  let x = 1\n  let y = x\n  x\n";
+  var ren_x = compiler.ident_at(ren_src, ren_src.indexOf("x ="));
+  var ren_out = ren_x ? compiler.rename_ident(ren_src, ren_x.start, "z") : "";
+  if (!ren_out || ren_out.indexOf("let z = 1") < 0 || ren_out.indexOf("let y = z") < 0 || (ren_out.match(/\bz\b/g) || []).length < 2) {
+    console.log("fail rename bind " + ren_out); failed += 1;
+  } else console.log("ok   rename bind");
   if (compiler.mod_resolve("Tweeter", ["Tweeter.ok"], [], "ok") !== "Tweeter.ok"
     || compiler.mod_resolve("Tweeter", ["Tweeter.ok"], [], "Nat.add") !== "Nat.add"
     || compiler.mod_resolve("Audit", ["Audit.report"], [{mod: "Boxes", names: ["len"]}], "len") !== "Boxes.len") {
@@ -6245,6 +6285,14 @@ function spawn_term_run(term) {
           failed += 1;
         } else console.log("ok   Test.host newline argv");
       } else console.log("ok   Test.host newline argv");
+      if (host_out.indexOf("Test.host line FAST") < 0) {
+        console.log("fail Test.host get_line race");
+        failed += 1;
+      } else console.log("ok   Test.host get_line race");
+      if (host_out.indexOf("Test.host http FAST") < 0) {
+        console.log("fail Test.host http race");
+        failed += 1;
+      } else console.log("ok   Test.host http race");
     } catch (e) {
       console.log(e);
       failed += 1;

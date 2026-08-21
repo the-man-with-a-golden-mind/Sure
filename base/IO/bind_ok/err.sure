@@ -1,0 +1,4 @@
+IO.bind_ok.err<E: Type, A: Type, B: Type>(e: E, f: A -> IO<Outcome<E, B>>):
+  IO.bind_ok<E, A, B>(IO.end<Outcome<E, A>>(Outcome.err<E, A>(e)), f)
+    == IO.end<Outcome<E, B>>(Outcome.err<E, B>(e))
+  refl

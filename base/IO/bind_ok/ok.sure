@@ -1,0 +1,6 @@
+IO.bind_ok.ok<E: Type, A: Type, B: Type>(x: A, g: A -> B):
+  IO.bind_ok<E, A, B>(
+    IO.end<Outcome<E, A>>(Outcome.ok<E, A>(x)),
+    (a) IO.end<Outcome<E, B>>(Outcome.ok<E, B>(g(a)))
+  ) == IO.end<Outcome<E, B>>(Outcome.ok<E, B>(g(x)))
+  refl

@@ -23,16 +23,26 @@ Test.host.bracket: IO<String>
     (w) IO.end<String>(Test.host.winner(w))
   )
 
+Test.host.node: IO<String>
+  IO {
+    get n = IO.get_env("SURE_NODE")
+    return case n {
+      none: "node"
+      some: if String.is_empty(n.value) then "node" else n.value
+    }
+  }
+
 Test.host: IO<Unit>
   IO {
-    get o = Proc.exec("node", ["-e", "process.stdout.write('ok')"])
+    get bin = Test.host.node
+    get o = Proc.exec(bin, ["-e", "process.stdout.write('ok')"])
     case o {
       err: IO.print("Test.host fail")
       ok:
         open o.value
         IO {
           IO.print("Test.host " | o.value.stdout)
-          get nl = Proc.exec("node", ["-e", "process.stdout.write(process.argv[1])", "a\nb"])
+          get nl = Proc.exec(bin, ["-e", "process.stdout.write(process.argv[1])", "a\nb"])
           case nl {
             err: IO.print("Test.host nl fail")
             ok:
@@ -41,6 +51,18 @@ Test.host: IO<Unit>
                 IO.print("Test.host nl " | nl.value.stdout)
                 get e = Test.host.bracket
                 IO.print(e)
+                get line = IO.race<String, String, String>(
+                  IO.get_line,
+                  IO.end<String>("FAST"),
+                  (w) IO.end<String>(Test.host.winner(w))
+                )
+                IO.print("Test.host line " | line)
+                get http = IO.race<String, String, String>(
+                  IO.http("http://127.0.0.1:1/"),
+                  IO.end<String>("FAST"),
+                  (w) IO.end<String>(Test.host.winner(w))
+                )
+                IO.print("Test.host http " | http)
               }
           }
         }

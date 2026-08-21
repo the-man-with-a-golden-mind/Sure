@@ -854,10 +854,18 @@ function format_source(src) {
     }
     var parts = b.text.split("\n");
     out.push(parts[0]);
+    var min = null;
     for (var j = 1; j < parts.length; j++) {
-      var ln = parts[j].replace(/^\s+/, "");
-      if (!ln) continue;
-      out.push("  " + ln);
+      if (!String(parts[j]).trim()) continue;
+      var lead = /^(\s*)/.exec(parts[j]);
+      var n = lead ? lead[1].length : 0;
+      if (min == null || n < min) min = n;
+    }
+    if (min == null) min = 0;
+    for (var j = 1; j < parts.length; j++) {
+      if (!String(parts[j]).trim()) continue;
+      var body = String(parts[j]).slice(min);
+      out.push("  " + body);
     }
   }
   var s = out.join("\n");
@@ -939,6 +947,91 @@ function symbols(src) {
   return out;
 }
 
+function ident_bindings(src) {
+  src = String(src || "");
+  var toks = idents(src);
+  var stack = [Object.create(null)];
+  var bind_of = new Array(toks.length);
+  var i = 0;
+  var t = 0;
+  var expectBinder = false;
+  function push() { stack.push(Object.create(stack[stack.length - 1])); }
+  function pop() { if (stack.length > 1) stack.pop(); }
+  function bind(name, tokIndex) {
+    var sc = Object.create(stack[stack.length - 1]);
+    sc[name] = tokIndex;
+    stack[stack.length - 1] = sc;
+  }
+  while (i <= src.length && t < toks.length) {
+    if (i >= src.length) break;
+    if (src[i] === "\"" || src[i] === "'") {
+      expectBinder = false;
+      var e = when_skip_string(src, i);
+      i = e > i ? e : i + 1;
+      continue;
+    }
+    if (src[i] === "/" && src[i + 1] === "/") {
+      expectBinder = false;
+      while (i < src.length && src[i] !== "\n") i++;
+      continue;
+    }
+    if (src[i] === "{") { push(); expectBinder = false; i++; continue; }
+    if (src[i] === "}") { pop(); expectBinder = false; i++; continue; }
+    if (toks[t].start === i) {
+      var name = toks[t].name;
+      if (name === "get" || name === "let") {
+        expectBinder = true;
+        bind_of[t] = -1;
+      } else if (expectBinder) {
+        bind(name, t);
+        bind_of[t] = t;
+        expectBinder = false;
+      } else if (Object.prototype.hasOwnProperty.call(stack[stack.length - 1], name)) {
+        bind_of[t] = stack[stack.length - 1][name];
+      } else {
+        bind_of[t] = -1;
+      }
+      i = toks[t].end;
+      t++;
+      continue;
+    }
+    expectBinder = false;
+    i++;
+  }
+  while (t < toks.length) {
+    bind_of[t] = -1;
+    t++;
+  }
+  return {toks: toks, bind_of: bind_of};
+}
+
+function rename_ident(src, offset, newName) {
+  src = String(src || "");
+  newName = String(newName || "");
+  if (!newName) return null;
+  var at = ident_at(src, offset);
+  if (!at) return null;
+  var info = ident_bindings(src);
+  var idx = -1;
+  for (var i = 0; i < info.toks.length; i++) {
+    if (info.toks[i].start === at.start && info.toks[i].end === at.end) { idx = i; break; }
+  }
+  if (idx < 0) return null;
+  var bind = info.bind_of[idx];
+  var next = "";
+  var p = 0;
+  for (var i = 0; i < info.toks.length; i++) {
+    var same = bind === -1
+      ? (info.toks[i].name === at.name && info.bind_of[i] === -1)
+      : (info.bind_of[i] === bind);
+    if (!same) continue;
+    next += src.slice(p, info.toks[i].start) + newName;
+    p = info.toks[i].end;
+  }
+  next += src.slice(p);
+  return next;
+}
+
 function ident_at(src, offset) {
   src = String(src || "");
   offset = Number(offset) || 0;
@@ -1010,6 +1103,8 @@ module.exports = {
   symbols: symbols,
   idents: idents,
   ident_at: ident_at,
+  ident_bindings: ident_bindings,
+  rename_ident: rename_ident,
   get_map: get_map,
   map_offset: map_offset,
   mod_resolve: mod_resolve,

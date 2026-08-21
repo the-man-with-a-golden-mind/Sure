@@ -28,6 +28,15 @@ Prove.all: Unit
   let i3 = IO.set_file.def
   let o0 = Outcome.map.ok
   let o1 = Outcome.bind.err
+  let o2 = Outcome.map_err.ok
+  let o3 = Outcome.map_err.err
+  let o4 = Outcome.guard.ok
+  let o5 = Outcome.guard.err
+  let o6 = IO.from_outcome.def
+  let o7 = IO.bind_ok.err
+  let o8 = IO.bind_ok.ok
+  let o9 = Proc.env.pack.empty
+  let o10 = Proc.env.pack.one
   let a0 = Path.is_safe.empty
   let a1 = Path.is_safe.dotdot
   let a2 = Path.is_safe.plain

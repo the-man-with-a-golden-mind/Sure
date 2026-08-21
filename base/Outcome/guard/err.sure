@@ -1,0 +1,2 @@
+Outcome.guard.err<E: Type>(e: E): Outcome.guard<E>(false, e) == Outcome.err<E, Unit>(e)
+  refl

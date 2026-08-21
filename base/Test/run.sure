@@ -1,7 +1,30 @@
+Test.timeout_ms: Nat
+  15000
+
+Test.either_result(e: Either<Test.Result, Test.Result>): Test.Result
+  case e {
+    left: e.value
+    right: e.value
+  }
+
+Test.run.want_group(want: Maybe<String>, name: String): Bool
+  case want {
+    none: true
+    some: Bool.or(String.is_empty(want.value), String.includes(name, want.value))
+  }
+
 Test.run(t: Test): IO<Test.Stats>
+  IO {
+    get g = IO.get_env("SURE_TEST_GROUP")
+    Test.run.go(t, g, false)
+  }
+
+Test.run.go(t: Test, group: Maybe<String>, active: Bool): IO<Test.Stats>
   case t {
     unit:
-      case t.result {
+      if Bool.not(Bool.or(active, Test.run.want_group(group, t.name))) then IO {
+        return Test.Stats.zero
+      } else case t.result {
         pass:
           IO {
             IO.print("ok   " | t.name)
@@ -14,18 +37,32 @@ Test.run(t: Test): IO<Test.Stats>
           }
       }
     io:
-      IO {
-        get result = t.act
-        Test.run(Test.unit(t.name, result))
+      if Bool.not(Bool.or(active, Test.run.want_group(group, t.name))) then IO {
+        return Test.Stats.zero
+      } else IO {
+        get result = IO.race<Test.Result, Test.Result, Test.Result>(
+          t.act,
+          IO {
+            get _ = IO.sleep(Test.timeout_ms)
+            return Test.Result.fail("timeout")
+          },
+          (e) IO.end<Test.Result>(Test.either_result(e))
+        )
+        Test.run.go(Test.unit(t.name, result), group, true)
       }
     group:
-      IO {
-        IO.print(t.name)
-        Test.run_list(t.tests, Test.Stats.zero)
+      let next = Bool.or(active, Test.run.want_group(group, t.name))
+      if next then IO {
+        IO.print("== " | t.name | " ==")
+        get s = Test.run_list(t.tests, Test.Stats.zero, group, true)
+        IO.print("== " | t.name | " done ==")
+        return s
+      } else IO {
+        Test.run_list(t.tests, Test.Stats.zero, group, false)
       }
   }
 
-Test.run_list(ts: List<Test>, acc: Test.Stats): IO<Test.Stats>
+Test.run_list(ts: List<Test>, acc: Test.Stats, group: Maybe<String>, active: Bool): IO<Test.Stats>
   case ts {
     nil:
       IO {
@@ -33,7 +70,7 @@ Test.run_list(ts: List<Test>, acc: Test.Stats): IO<Test.Stats>
       }
     cons:
       IO {
-        get s = Test.run(ts.head)
-        Test.run_list(ts.tail, Test.Stats.add(acc, s))
+        get s = Test.run.go(ts.head, group, active)
+        Test.run_list(ts.tail, Test.Stats.add(acc, s), group, active)
       }
   }

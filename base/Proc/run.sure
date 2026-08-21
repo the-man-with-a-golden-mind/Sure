@@ -1,6 +1,15 @@
 Proc.run(file: String, args: List<String>): IO<Outcome<Proc.Err, Proc.Out>>
   Proc.run.at(file, args, "", "")
 
+Proc.run.with(
+  file: String,
+  args: List<String>,
+  cwd: String,
+  env: List<Pair<String, String>>
+): IO<Outcome<Proc.Err, Proc.Out>>
+  Proc.run.at(file, args, cwd, Proc.env.pack(env))
+
+// `env` is Proc.env.pack of key/value pairs. Junk packs are Host.Err, not extra args.
 Proc.run.at(file: String, args: List<String>, cwd: String, env: String): IO<Outcome<Proc.Err, Proc.Out>>
   IO {
     get e = Host.perform(Host.Op.proc_run(file, Proc.join_args(args), cwd, env))

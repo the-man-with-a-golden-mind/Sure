@@ -1,0 +1,10 @@
+// Sequence IO<Outcome> like Outcome.bind / Rust and_then. err stops; ok continues.
+IO.bind_ok<E: Type, A: Type, B: Type>(
+  io: IO<Outcome<E, A>>,
+  f: A -> IO<Outcome<E, B>>
+): IO<Outcome<E, B>>
+  IO.bind<Outcome<E, A>, Outcome<E, B>>(io, (o)
+    case o {
+      err: IO.end<Outcome<E, B>>(Outcome.err<E, B>(o.error))
+      ok: f(o.value)
+    })

@@ -24,6 +24,13 @@ Truth pass (audit):
 - `Proc.join_args` / host argv parse are length-prefixed. An argument may contain newlines. Env is packed key/value pairs, not `;` / `=`.
 - Module qualification matches `Sure.Mod.resolve` / `Sure.Parser.file.rewrite` (locals, then `Module.name`, then import exposing).
 - LSP rename, references, highlight, completion, and symbols use `compiler.parse_document` / `compiler.idents` / `compiler.symbols`. Strings and comments are not identifiers.
+- `Outcome.map_err`, `Outcome.guard`, `IO.from_outcome`, and `IO.bind_ok` flatten `IO<Outcome>` chains. Nested `case` is still required when success of a get *is* the error (`taken`). There is no `?`.
+- Blocking host ops (`get_line`, HTTP, TCP recv, `proc_wait`, sleep) resolve on abort so `IO.race` cannot deadlock waiting for a cancelled loser.
+- `./bin/sure` requires Node 18+ and `AbortController`. `SURE_NODE` / `process.execPath` is the `Proc.exec` binary in `Test.host`.
+- `format_source` keeps relative indent inside a definition. LSP rename/highlight follow `get`/`let`/`{}` bindings, not every same token.
+- `Proc.env.pack` / `Proc.run.with` pack environment pairs. Junk packs are `bad_pack`.
+- `IO.bracket`: if `use` succeeds, a `release` throw is the result; if `use` fails, that error wins.
+- `Test.main` prints group phases, 15s timeouts on `Test.io`, and `SURE_TEST_GROUP` sharding.
 
 `when { pred: val ... } default rest` is the table form of nested `if` (first true wins). `case` stays constructor matching. `switch f { key: v }` stays one `A -> Bool`. `String.ok(s, banned)` is nonempty and none of those substrings. `String.has_none` is the same without the empty check.
 

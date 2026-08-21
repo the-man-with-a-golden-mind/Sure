@@ -1,0 +1,2 @@
+Outcome.guard.ok<E: Type>(e: E): Outcome.guard<E>(true, e) == Outcome.ok<E, Unit>(unit)
+  refl

@@ -19,7 +19,7 @@ typ: Sure.Check { return Sure.Term.typ }
 There are no universe levels. Combined with general recursion this admits
 logical paradoxes. That is intentional.
 
-Kind inverts Agda's default: **expressivity is on**, consistency is a planned
+Sure inverts Agda's default: **expressivity is on**, consistency is a planned
 opt-in (`CONTRIBUTE.md`, consistency checker / `✓ ⊤`). We will not silently
 change this in Phases 0–3.
 

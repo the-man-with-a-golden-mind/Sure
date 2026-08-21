@@ -14,9 +14,12 @@ if [ "$want_bun" = 1 ]; then
   echo "kind: bun not found (--bun or SURE_RUNTIME=bun)" >&2
   exit 1
 fi
+node_ok() {
+  "$1" -e 'var m=parseInt(String(process.versions.node).split(".")[0],10); if(!(m>=18)) process.exit(2); if(typeof AbortController!=="function") process.exit(3);' >/dev/null 2>&1
+}
 pick_node() {
   if [ -n "$SURE_NODE" ]; then
-    if "$SURE_NODE" -e 'process.exit(0)' >/dev/null 2>&1; then
+    if node_ok "$SURE_NODE"; then
       printf '%s\n' "$SURE_NODE"
       return 0
     fi
@@ -25,7 +28,7 @@ pick_node() {
   IFS=:
   for _dir in $PATH; do
     _n="$_dir/node"
-    if [ -x "$_n" ] && "$_n" -e 'process.exit(0)' >/dev/null 2>&1; then
+    if [ -x "$_n" ] && node_ok "$_n"; then
       printf '%s\n' "$_n"
       IFS=$_oldifs
       return 0
@@ -35,7 +38,7 @@ pick_node() {
   return 1
 }
 NODE="$(pick_node)" || {
-  echo "kind: no working node (broken ICU or missing). Set SURE_NODE to a Node binary that runs." >&2
+  echo "kind: need Node 18+ with AbortController. Set SURE_NODE to that binary." >&2
   exit 1
 }
 exec "$NODE" --stack-size=10000 "$MAIN" "$@"

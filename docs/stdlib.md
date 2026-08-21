@@ -22,10 +22,17 @@ type Outcome <E: Type, A: Type> {
   ok(value: A)
 }
 
-Outcome.map / Outcome.bind / Outcome.is_ok
+Outcome.map / Outcome.map_err / Outcome.bind / Outcome.guard / Outcome.is_ok
+IO.from_outcome / IO.bind_ok
 ```
 
+`Outcome.map` is Rust `map`. `Outcome.map_err` is Rust `map_err`. `Outcome.bind` is `and_then`. `Outcome.guard(ok, err)` is `ok(unit)` or `err`. `IO.bind_ok` sequences `IO<Outcome<E, A>>` and stops on `err`. Empty/junk stay `err`; there is no `?`.
+
+`Proc.run.with(file, args, cwd, env)` takes `List<Pair<String, String>>` via `Proc.env.pack`. `Proc.run.at` still takes that packed string. Malformed packs are `bad_pack`, not extra arguments.
+
 `Result` still exists (stringly errors). New code uses `Outcome`.
+
+`IO.bracket` always runs `release` on a fresh abort scope. If `use` succeeds and `release` throws, that error is the result. If `use` fails, the use error wins and a release error is dropped.
 
 ## Path, File, Dir
 

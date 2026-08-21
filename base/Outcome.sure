@@ -10,11 +10,20 @@ Outcome.map<E: Type, A: Type, B: Type>(o: Outcome<E, A>, f: A -> B): Outcome<E, 
     ok: Outcome.ok<E, B>(f(o.value))
   }
 
+Outcome.map_err<E: Type, F: Type, A: Type>(o: Outcome<E, A>, f: E -> F): Outcome<F, A>
+  case o {
+    err: Outcome.err<F, A>(f(o.error))
+    ok: Outcome.ok<F, A>(o.value)
+  }
+
 Outcome.bind<E: Type, A: Type, B: Type>(o: Outcome<E, A>, f: A -> Outcome<E, B>): Outcome<E, B>
   case o {
     err: Outcome.err<E, B>(o.error)
     ok: f(o.value)
   }
+
+Outcome.guard<E: Type>(ok: Bool, err: E): Outcome<E, Unit>
+  if ok then Outcome.ok<E, Unit>(unit) else Outcome.err<E, Unit>(err)
 
 Outcome.is_ok<E: Type, A: Type>(o: Outcome<E, A>): Bool
   case o {

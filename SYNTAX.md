@@ -3,9 +3,8 @@ All syntaxes
 
 Day-to-day Sure: [docs/language.md](docs/language.md). This page is the exhaustive desugaring list (Kind lineage).
 
-This document lists all the high-level syntaxes available on the Kind
-language. Every syntax listed below is expanded (desugared) to either a
-primitive [FormCore](https://github.com/moonad/formcorejs) term, or to one of the functions available on the [base library](https://github.com/Kindelia/Kind/tree/master/base). Also, check [this](https://news.ycombinator.com/edit?id=28145337) answer on Hacker News for some thoughts and reasonings about our syntax choices.
+This document lists all the high-level syntaxes available in Sure. Every syntax listed below is expanded (desugared) to either a
+primitive [FormCore](https://github.com/moonad/formcorejs) term, or to one of the functions available on the [base library](https://github.com/the-man-with-a-golden-mind/Sure/tree/master/base). Also, check [this](https://news.ycombinator.com/edit?id=28145337) answer on Hacker News for some thoughts and reasonings about our syntax choices.
 
 Top-level definition
 --------------------
@@ -17,7 +16,7 @@ name(arg0: type0, arg1: type1): return_type
 ...
 ```
 
-Kind programs and proofs are composed of a number of top-level definitions
+Sure programs and proofs are composed of a number of top-level definitions
 containing a `name`, followed by a number of arguments, followed by a `:`,
 followed by a `return_type`, followed by a `return_body`. For example:
 
@@ -285,7 +284,7 @@ Where `~` (it's optional) stands for any number of indices
 ("dynamic polymorphic types"). In the constructor, its fields are also optionally followed by `~` and its concrete indices.
 
 For more examples, check the common types (Maybe, Either, Nat, Vector, List,
-Equal, etc.) on https://github.com/Kindelia/Kind/tree/master/base.
+Equal, etc.) on https://github.com/the-man-with-a-golden-mind/Sure/tree/master/base.
 
 Case (pattern matching)
 -----------------------
@@ -1059,7 +1058,7 @@ case foo { new: foo.x }
 
 It can be used to get a field of a single-constructor datatype.
 
-Check [this post](https://github.com/kind-lang/Kind/blob/master/blog/3-getters-and-setters.md) for more info.
+Check [this post](docs/language.md) for more info.
 
 
 Record setter
@@ -1077,7 +1076,7 @@ case foo { new: Foo.new(100, foo.y) }
 
 It can be used to set a field of a single-constructor datatype.
 
-Check [this post](https://github.com/kind-lang/Kind/blob/master/blog/3-getters-and-setters.md) for more info.
+Check [this post](docs/language.md) for more info.
 
 List literal
 ------------
@@ -1137,7 +1136,7 @@ List.get!(4, list)
 
 This returns the element at index 4 as a `Maybe`.
 
-Check [this post](https://github.com/kind-lang/Kind/blob/master/blog/3-getters-and-setters.md) for more info.
+Check [this post](docs/language.md) for more info.
 
 
 List setter
@@ -1155,7 +1154,7 @@ List.set!(4, 100, list)
 
 This sets the element at index 4 to `100`.
 
-Check [this post](https://github.com/kind-lang/Kind/blob/master/blog/3-getters-and-setters.md) for more info.
+Check [this post](docs/language.md) for more info.
 
 Map literal
 -----------
@@ -1200,7 +1199,7 @@ Map.get!("foo", map)
 
 This returns the element at key "foo" as a `Maybe`.
 
-Check [this post](https://github.com/kind-lang/Kind/blob/master/blog/3-getters-and-setters.md) for more info.
+Check [this post](docs/language.md) for more info.
 
 Map setter
 ----------
@@ -1217,7 +1216,7 @@ Map.set!("foo", 100, map)
 
 This sets the element at key "foo" to `100`.
 
-Check [this post](https://github.com/kind-lang/Kind/blob/master/blog/3-getters-and-setters.md) for more info.
+Check [this post](docs/language.md) for more info.
 
 Equal.apply
 -----------
@@ -1246,7 +1245,7 @@ Equal.rewrite<_,_,_, (x) type>(e, value)
 ```
 
 Using `Equal.rewrite` as defined on
-[Equal.fm](https://github.com/Kindelia/Kind/blob/master/base/Equal.fm). It
+[Equal.fm](https://github.com/the-man-with-a-golden-mind/Sure/blob/master/base/Equal.sure). It
 allows rewritting the type of an expression based on an equality proof. For
 example, suppose you have the following values in your context:
 

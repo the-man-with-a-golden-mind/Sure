@@ -1,0 +1,3 @@
+Outcome.map_err.ok<E: Type, F: Type, A: Type>(x: A, f: E -> F):
+  Outcome.map_err<E, F, A>(Outcome.ok<E, A>(x), f) == Outcome.ok<F, A>(x)
+  refl

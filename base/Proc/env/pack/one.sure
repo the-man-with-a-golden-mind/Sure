@@ -1,0 +1,2 @@
+Proc.env.pack.one: Proc.env.pack([Pair.new<String, String>("A", "1")]) == "1\nA1\n1"
+  refl

@@ -606,14 +606,14 @@ async function run_prove_edges() {
     console.log("fail html wrap empty"); failed += 1;
   } else console.log("ok   html wrap empty");
   var mount = sure_dom_mount_src();
-  if (mount.indexOf("parentElement") < 0 || mount.indexOf("catch") < 0 || mount.indexOf("Sure.Ui.Client.new") < 0 || mount.indexOf("EventSource") < 0 || mount.indexOf("__sureMounted") < 0 || mount.indexOf("data-sure-scroll") < 0 || mount.indexOf("scrollTop") < 0 || mount.indexOf("FileReader") < 0 || mount.indexOf("POST") < 0 || mount.indexOf("same-origin") < 0) {
+  if (mount.indexOf("parentElement") < 0 || mount.indexOf("catch") < 0 || mount.indexOf("Sure.Ui.Client.new") < 0 || mount.indexOf("EventSource") < 0 || mount.indexOf("__sureMounted") < 0 || mount.indexOf("data-sure-scroll") < 0 || mount.indexOf("scrollTop") < 0 || mount.indexOf("FileReader") < 0 || mount.indexOf("POST") < 0 || mount.indexOf("same-origin") < 0 || mount.indexOf("applyPx") < 0 || mount.indexOf("minWidth") < 0) {
     console.log("fail mount harden"); failed += 1;
   } else console.log("ok   mount harden");
   if (sure_emit_file("../etc") !== "" || sure_emit_file("a/b") !== "" || sure_emit_html_file("..") !== "") {
     console.log("fail emit path traversal"); failed += 1;
   } else console.log("ok   emit path traversal");
   var page = sure_html_wrap("Main", "module.exports={};");
-  if (!page || page.indexOf("sure-root") < 0 || page.indexOf("SureDom.mount") < 0 || page.indexOf("\"click\"") < 0 || page.indexOf("\"wheel\"") < 0 || page.indexOf("<style>") < 0 || page.indexOf("cdn.tailwindcss.com") >= 0 || page.indexOf("daisyui") >= 0) {
+  if (!page || page.indexOf("sure-root") < 0 || page.indexOf("SureDom.mount") < 0 || page.indexOf("\"click\"") < 0 || page.indexOf("\"wheel\"") < 0 || page.indexOf("<style>") < 0 || page.indexOf("display:flex") < 0 || page.indexOf("cdn.tailwindcss.com") >= 0 || page.indexOf("daisyui") >= 0) {
     console.log("fail html wrap events"); failed += 1;
   } else console.log("ok   html wrap events");
   if (SURE_DOM_EVENTS.length !== 122) {

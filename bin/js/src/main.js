@@ -3243,6 +3243,7 @@ function spawn_term_run(term) {
       run_compiled_js(distRun, use_bun, run_extra);
       return;
     }
+    console.log("compile " + term + " (no fresh dist/" + term + ".js)");
     process.argv = [process.argv[0], process.argv[1], term, "--run"].concat(run_extra);
     flag = "--run";
     name = term;

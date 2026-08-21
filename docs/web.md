@@ -8,7 +8,7 @@ Three layers, one language:
 | `Sure.Ui` | Elm-like: `sandbox` or `element` with `Cmd` / `Sub` | `sure build --html Sure.Ui.Tick.client` |
 | `Sure.Ssr` | Server HTML, SSE, routes | `sure run` a `*.serve` term |
 
-Open the HTML file in a browser. Clicks and input call `step` in the page. Generated HTML inlines a small stylesheet; it does not load Tailwind or DaisyUI from a CDN.
+Open the HTML file in a browser. Clicks and input call `step` in the page. Generated HTML inlines layout CSS (flex, grid chrome, daisy-like `navbar` / `card` / `btn`). It does not load Tailwind or DaisyUI from a CDN. `w-[Npx]` / `h-[Npx]` / `top-[Npx]` are applied after each draw.
 
 ## Bench
 

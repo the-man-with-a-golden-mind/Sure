@@ -771,13 +771,8 @@ function file_fingerprint(p) {
   }
 }
 
-function compiler_input_hash() {
-  if (_compiler_input_hash) return _compiler_input_hash;
-  var crypto = require("crypto");
-  var h = crypto.createHash("sha256");
-  h.update(String(SURE_VERSION || ""));
-  h.update("\0");
-  [
+function compiler_files() {
+  return [
     path.join(__dirname, "main.js"),
     path.join(__dirname, "compiler.js"),
     path.join(__dirname, "lsp.js"),
@@ -796,14 +791,39 @@ function compiler_input_hash() {
     path.join(formcore_path, "host-pack.js"),
     path.join(formcore_path, "host-io-gen.js"),
     path.join(formcore_path, "ws-frames.js")
-  ].forEach(function(p) {
-    h.update(file_fingerprint(p));
+  ];
+}
+
+function compiler_input_hash() {
+  if (_compiler_input_hash) return _compiler_input_hash;
+  var files = compiler_files();
+  var stdRoot = STDLIB_BASE || process.cwd();
+  var std = fingerprint.digestTree(stdRoot);
+  var key = String(SURE_VERSION || "") + "\n" + files.map(file_fingerprint).join("\n") + "\n" + (std.digest || "");
+  var cacheFile = path.join(require("os").homedir(), ".cache", "sure", "compiler-input.json");
+  try {
+    var cached = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
+    if (cached && cached.key === key && typeof cached.hash === "string" && cached.hash.length === 64) {
+      _compiler_input_hash = cached.hash;
+      return _compiler_input_hash;
+    }
+  } catch (eC) {}
+  var crypto = require("crypto");
+  var h = crypto.createHash("sha256");
+  h.update(String(SURE_VERSION || ""));
+  h.update("\0");
+  files.forEach(function(p) {
+    h.update(p);
     h.update("\0");
     try { h.update(fs.readFileSync(p)); } catch (e) { h.update("missing:" + p); }
     h.update("\0");
   });
-  hash_kind_tree(h, STDLIB_BASE || process.cwd());
+  h.update(std.digest || "");
   _compiler_input_hash = h.digest("hex");
+  try {
+    fs.mkdirSync(path.dirname(cacheFile), {recursive: true});
+    fs.writeFileSync(cacheFile, JSON.stringify({key: key, hash: _compiler_input_hash}) + "\n");
+  } catch (eW) {}
   return _compiler_input_hash;
 }
 
@@ -877,13 +897,39 @@ function read_build_stamp(root) {
   try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch (e) { return null; }
 }
 
-function write_build_stamp(root, stamp) {
-  fs.mkdirSync(path.join(root, ".sure"), {recursive: true});
-  fs.writeFileSync(build_stamp_path(root), JSON.stringify(stamp, null, 2) + "\n");
+function stamp_key(term, html) {
+  return String(term || "Main") + (html ? "#html" : "");
 }
 
-function build_is_fresh(prev, hash, term) {
-  return !!(prev && prev.ok && prev.term === term && prev.src_hash === hash);
+function stamp_for(stamp, term, html) {
+  if (!stamp) return null;
+  var key = stamp_key(term, html);
+  if (stamp.terms && stamp.terms[key]) return stamp.terms[key];
+  if (stamp.term === term && !!stamp.html === !!html) return stamp;
+  return null;
+}
+
+function write_build_stamp(root, stamp) {
+  fs.mkdirSync(path.join(root, ".sure"), {recursive: true});
+  var prev = read_build_stamp(root) || {};
+  var terms = (prev.terms && typeof prev.terms === "object") ? prev.terms : {};
+  if (prev.term && !prev.terms) {
+    terms[stamp_key(prev.term, !!prev.html)] = {
+      ok: prev.ok, src_hash: prev.src_hash, file: prev.file, html: !!prev.html, proved: prev.proved
+    };
+  }
+  if (stamp && stamp.term) {
+    terms[stamp_key(stamp.term, !!stamp.html)] = {
+      ok: stamp.ok, src_hash: stamp.src_hash, file: stamp.file, html: !!stamp.html, proved: stamp.proved
+    };
+  }
+  var out = Object.assign({}, stamp, {terms: terms});
+  fs.writeFileSync(build_stamp_path(root), JSON.stringify(out, null, 2) + "\n");
+}
+
+function build_is_fresh(prev, hash, term, html) {
+  var one = stamp_for(prev, term, html);
+  return !!(one && one.ok && one.src_hash === hash);
 }
 
 var emit = require("./emit");
@@ -903,16 +949,51 @@ function emit_js_abs(root, term) {
   return path.join(root || ORIG_CWD, rel);
 }
 
-function emit_is_fresh(prev, hash, term, root) {
-  if (!build_is_fresh(prev, hash, term)) return false;
-  var p = emit_js_abs(root, term);
+function emit_is_fresh(prev, hash, term, root, html) {
+  var one = stamp_for(prev, term, html);
+  if (!one || !build_is_fresh(prev, hash, term, html)) return false;
+  var p = html
+    ? path.join(root, sure_emit_html_file(term))
+    : emit_js_abs(root, term);
+  if (one.file) {
+    var listed = path.isAbsolute(one.file) ? one.file : path.join(root, one.file);
+    if (listed && fs.existsSync(listed) && fs.statSync(listed).size > 0) return true;
+  }
   return !!(p && fs.existsSync(p) && fs.statSync(p).size > 0);
+}
+
+function defs_to_core(ds) {
+  var mapFn = kind["BitsMap.map"];
+  var inline = checker("Term.inline");
+  var core = checker("Defs.core");
+  var mk = checker("Def.new");
+  if (!ds || !mapFn || !inline || !core || !mk) return "";
+  var inlined = mapFn(function(defn) {
+    if (!defn || defn._ !== "Sure.Def.new") return defn;
+    return mk(defn.file)(defn.code)(defn.orig)(defn.name)(inline(defn.term)(ds))(inline(defn.type)(ds))(defn.isct)(defn.arit)(defn.stat);
+  })(ds);
+  return core(inlined);
 }
 
 async function compile_term_js(name, opts) {
   if (!name) throw new Error("need term");
-  var fmcc = await kind.run(checker("api.io.term_to_core")(name));
-  return fmc_to_js.compile(fmcc, name, opts || {});
+  var t0 = Date.now();
+  if (!workspace.has(name)) {
+    await workspace.check_names([name], {cache: true});
+  }
+  var fmcc = "";
+  var ds = workspace.defs();
+  if (ds && workspace.has(name)) {
+    try { fmcc = defs_to_core(ds); } catch (eD) { fmcc = ""; }
+  }
+  if (!fmcc) {
+    fmcc = await kind.run(checker("api.io.term_to_core")(name));
+  }
+  workspace.time("term_to_core", t0);
+  var t1 = Date.now();
+  var js = fmc_to_js.compile(fmcc, name, opts || {});
+  workspace.time("fmc_to_js", t1);
+  return js;
 }
 
 function write_emit_js(root, term, js) {
@@ -933,11 +1014,11 @@ async function build_and_emit(term, force, html) {
   var hash = manFile ? project_src_hash(manFile, {html: !!html, runtime: process.env.SURE_RUNTIME || "node"}) : "";
   var prev = manFile ? read_build_stamp(root) : null;
   var out = html ? path.join(root, sure_emit_html_file(term)) : emit_js_abs(root, term);
-  if (!force && manFile && !html && emit_is_fresh(prev, hash, term, root) && prev.proved !== false) {
-    return {ok: true, skipped: true, file: out, term: term, src_hash: hash};
-  }
-  if (!force && manFile && html && prev && prev.ok && prev.term === term && prev.src_hash === hash && prev.html && fs.existsSync(out) && fs.statSync(out).size > 0) {
-    return {ok: true, skipped: true, file: out, term: term, src_hash: hash, html: true};
+  if (!force && manFile && emit_is_fresh(prev, hash, term, root, html)) {
+    var one = stamp_for(prev, term, html);
+    if (html || !one || one.proved !== false) {
+      return {ok: true, skipped: true, file: out, term: term, src_hash: hash, html: !!html};
+    }
   }
   var theorems = [];
   if (manFile) {
@@ -1392,7 +1473,7 @@ var selftest = require("./selftest")({
   agent_check_code: function(a) { return agent_check_code(a); },
   agent_dispatch: function(a, b) { return agent_dispatch(a, b); },
   bench_stats: function(a) { return bench_stats(a); },
-  build_is_fresh: function(a, b, c) { return build_is_fresh(a, b, c); },
+  build_is_fresh: function(a, b, c, d) { return build_is_fresh(a, b, c, d); },
   bun_available: function() { return bun_available(); },
   check_project_modules: function(a) { return check_project_modules(a); },
   cmd_gen: function(a) { return cmd_gen(a); },
@@ -1401,7 +1482,7 @@ var selftest = require("./selftest")({
   compiler: compiler,
   compiler_input_hash: function() { return compiler_input_hash(); },
   dep_tree_hash: function(a) { return dep_tree_hash(a); },
-  emit_is_fresh: function(a, b, c, d) { return emit_is_fresh(a, b, c, d); },
+  emit_is_fresh: function(a, b, c, d, e) { return emit_is_fresh(a, b, c, d, e); },
   fill_src: function(a, b, c) { return fill_src(a, b, c); },
   format_goal_line: function(a) { return format_goal_line(a); },
   formcore_path: formcore_path,
@@ -1857,7 +1938,7 @@ function spawn_term_run(term) {
     var distRun = emit_js_abs(rootRun, term);
     var stampRun = manRun ? read_build_stamp(rootRun) : null;
     var hashRun = manRun ? project_src_hash(manRun, {runtime: process.env.SURE_RUNTIME || "node"}) : "";
-    if (distRun && fs.existsSync(distRun) && manRun && emit_is_fresh(stampRun, hashRun, term, rootRun)) {
+    if (distRun && fs.existsSync(distRun) && manRun && emit_is_fresh(stampRun, hashRun, term, rootRun, false)) {
       run_compiled_js(distRun, use_bun, run_extra);
       return;
     }

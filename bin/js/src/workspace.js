@@ -224,6 +224,7 @@ module.exports = function make(deps) {
     time: time,
     term_show: function(name) { return term_show(defs, name); },
     has: function(name) { return !!checked[name]; },
+    defs: function() { return defs; },
     loads: function() { return loads; },
     lastRequest: function() { return lastRequest; }
   };

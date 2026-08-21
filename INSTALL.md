@@ -6,8 +6,7 @@ The user guide is [docs/](docs/README.md). This page is the install recipe.
 
 `./bin/sure` is the CLI. `./bin/kind` is the same program.
 
-JavaScript/Node is the primary application runtime. Chez Scheme is the
-reference / deep-recursion backend.
+JavaScript/Node is the application runtime. There is no Chez / Scheme host.
 
 ## JavaScript (primary)
 
@@ -40,18 +39,6 @@ export SURE_BASE=/path/to/Kind-Legacy/base
 # KIND_BASE still works
 ```
 
-## Scheme (reference)
-
-The historical Nix flake was deleted from the archive. The Scheme backend still
-lives under `bin/scm/` (`default.nix`, `Makefile`). Building it requires Chez
-Scheme and is optional for day-to-day JS work.
-
-```bash
-# if you have Chez and a previously built kind-scm:
-kind-scm Nat.add
-kind-scm Main --run
-```
-
 ## Checks that do not load App/ or User/
 
 ```bash
@@ -78,12 +65,11 @@ Sure.Ssr.ok / get / run                 // HTML pages; Reply.sse for EventSource
 Sure.Ui.sandbox / element               // Elm-like; Cmd/Sub; empty URL and every(0) are none
 Db.Dsl.read / run                       // COUNT PREFIX ROW; empty is none
 Db.Mig.up / down                        // empty name is not a step; re-run is 0
-Http.get(url) / Http.post(url, body) // status + body; Chez stub
+Http.get(url) / Http.post(url, body) // status + body
 Host.unsafe.ask(query, param)        // escape hatch
 ```
 
-Chez implements cwd/files as stubs or partial; JS is the primary runtime.
-`Proc.exec` and `Http.Server.listen` are JS-only; Chez returns `not implemented`.
+`Proc.exec` and `Http.Server.listen` run on the JavaScript host.
 
 ## Phase 3
 
@@ -106,7 +92,7 @@ Compile-time proofs:
 
 A well-typed **completed** `a == b` term is a proof the program computes that way. `_` and `admit` are not proofs. `sure prove` reports `"proved": true` only when every requested theorem is a completed proposition. `sure install` checks out `sure.lock` revisions; it does not clone latest HEAD.
 
-`Task.par_sleep` / `Task.race_sleep` overlap on Node. Chez runs jobs sequentially (stubs). WebSocket is a typed API; the JS host does the RFC 6455 handshake and masked frames over TCP/TLS without a `ws` package. `Worker.run` uses Node `worker_threads` or a Bun `Worker`; values are JSON. `Db.connect("suremem:app")` is an in-process map; `surefile:app.json` persists JSON. There is no Postgres stub. Generated HTML inlines CSS (no Tailwind/DaisyUI CDN).
+`Task.par_sleep` / `Task.race_sleep` overlap on Node. WebSocket is a typed API; the JS host does the RFC 6455 handshake and masked frames over TCP/TLS without a `ws` package. `Worker.run` uses Node `worker_threads` or a Bun `Worker`; values are JSON. `Db.connect("suremem:app")` is an in-process map; `surefile:app.json` persists JSON. There is no Postgres stub. Generated HTML inlines CSS (no Tailwind/DaisyUI CDN).
 
 ## Versions
 

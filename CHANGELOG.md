@@ -35,7 +35,8 @@ Truth pass (audit):
 - QC sample generation is `bin/js/src/qc.js`. HTML emit is `bin/js/src/emit.js`. CI behavioral tests are `Test.ci`.
 - `Html.el` / `Html.on` take `String` tag and event names (`DOM.node` / `Map.set "on-"|ev`). Clients (`Html.Echo`, Tweeter, Sheet, examples) do not compile `Html.Tag.show` / `Html.Event.show`. `Html.Event.Data.parse` still does not look up the event enum. Cold `--js` of `Html.Echo.client` is seconds, not minutes.
 - LSP hover, rename, symbols, and definition walk `Sure.Defs.read` terms (`Sure.Term.ori` / `ref`) and show types with `Sure.Term.show`. `ident_bindings` remains for binders the term tree does not name.
-- Agent JSON-RPC is `bin/js/src/agent.js`. Package/project commands (`new`/`add`/`install`/`expose`, manifests, lock) are `bin/js/src/project.js`.
+- Agent JSON-RPC is `bin/js/src/agent.js`. Package/project commands (`new`/`add`/`install`/`expose`, manifests, lock) are `bin/js/src/project.js`. Prove/QC/gen, the bounded self-test, and the repl are `commands.js` / `selftest.js` / `repl.js`.
+- There is no Chez / Scheme host. `bin/scm/` and `kind-scm` are gone. `sure Term --scm` is an error. The JavaScript host is the runtime.
 
 `when { pred: val ... } default rest` is the table form of nested `if` (first true wins). `case` stays constructor matching. `switch f { key: v }` stays one `A -> Bool`. `String.ok(s, banned)` is nonempty and none of those substrings. `String.has_none` is the same without the empty check.
 

@@ -77,10 +77,10 @@ Adding these would be great.
 Are you a full-time JavaScript developer that doesn't like JavScript?  You can
 just use Sure as your main language, compile it to JS with `sure Your.Term --js`
 and import it with `require("Your.Term")`. Imagine being able to do that for
-every language? Currently, Sure targets Scheme and JavaScript. We'd like more
-backends, as many as possible. Adding a new back-end is somewhat simple: just
-add its syntax on
-[base/Sure/Comp/Target](https://github.com/the-man-with-a-golden-mind/Sure/tree/master/base/Sure/Comp/Target)!
+every language? Currently, Sure emits JavaScript. Adding a new back-end is
+somewhat simple: add its syntax on
+[base/Sure/Comp/Target](https://github.com/the-man-with-a-golden-mind/Sure/tree/master/base/Sure/Comp/Target).
+There is no Chez / Scheme host.
 
 ## Add a rich geometry library
 
@@ -103,10 +103,8 @@ Right now, the JavaScript compiler on
 is lackluster, compared to the one in
 [FmcToJs.js](https://github.com/moonad/FormCoreJS/blob/master/FmcToJs.js). That
 is why, when compiling to JS, instead of using the compiler written in Kind, we
-compile to `FormCore`, and then use `FmcToJs.js`. Because of that, the Scheme
-back-end will produce much worse JS code than the Node.js back-end, among other
-issues. It would be nice to improve `JavaScript.sure` to make it as efficient as
-`FmcToJs.js`, allowing us to get rid of the JavaScript dependency.
+compile to `FormCore`, and then use `FmcToJs.js`. It would be nice to improve
+`JavaScript.sure` to make it as efficient as `FmcToJs.js`.
 
 ## Improve the pair syntax
 

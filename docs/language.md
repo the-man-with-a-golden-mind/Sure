@@ -301,6 +301,6 @@ A `//` line above a definition is what `sure doc Term` prints.
 - No `null`, no exceptions. `Maybe`, `Outcome`, `Empty`.
 - No universe levels. `Type : Type`.
 - No implicit termination checker. Recursion is allowed. Proofs that recurse on a predecessor are the induction you write yourself.
-- Chez Scheme is parked. JavaScript is the production host.
+- The host is JavaScript. There is no Chez / Scheme runtime.
 
 Next: [Prove](prove.md).

@@ -66,7 +66,7 @@ Single-constructor records use `new`. `open` them; do not `case` a one-ctor type
 ## What we will not do
 
 - Do not add universe levels by default. Do not make `Equal` primitive.
-- Do not revive Chez as the production host.
+- Do not add a Chez / Scheme host. JavaScript is the runtime.
 - Do not edit `PROMPT.md`.
 - Do not ship a partial API. If it is public, empty/junk/missing are defined.
 

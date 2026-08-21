@@ -214,7 +214,7 @@ var nat_to_bits = n => {
   };
   var host_get_args = (lib) => {
     var argv = (lib.pc && lib.pc.argv) || (typeof process !== 'undefined' ? process.argv : []) || [];
-    var flags = ['--run', '--run-scm', '--test', '--json'];
+    var flags = ['--run', '--test', '--json'];
     for (var i = 0; i < argv.length; i++) {
       if (flags.indexOf(argv[i]) !== -1) {
         return argv.slice(i + 1).join('\n');

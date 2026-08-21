@@ -91,4 +91,4 @@ docs/           this book
 editors/vscode  language server client
 ```
 
-Chez Scheme is parked. JavaScript is the production host.
+The host is JavaScript (Node or Bun). There is no Chez / Scheme runtime.

@@ -89,7 +89,7 @@ module.exports = function emit_io_host(hneed) {
     code += "  };\n";
     code += "  var host_get_args = (lib) => {\n";
     code += "    var argv = (lib.pc && lib.pc.argv) || (typeof process !== 'undefined' ? process.argv : []) || [];\n";
-    code += "    var flags = ['--run', '--run-scm', '--test', '--json'];\n";
+    code += "    var flags = ['--run', '--test', '--json'];\n";
     code += "    for (var i = 0; i < argv.length; i++) {\n";
     code += "      if (flags.indexOf(argv[i]) !== -1) {\n";
     code += "        return argv.slice(i + 1).join('\\n');\n";

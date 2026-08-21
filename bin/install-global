@@ -12,6 +12,27 @@ while [ -L "$SELF" ]; do
   esac
 done
 ROOT="$(CDPATH= cd -- "$(dirname "$SELF")/.." && pwd)"
+# bun add -g . writes "bun-global": "." into ~/.bun/install/global and then loops.
+GLOBAL_PKG="${HOME}/.bun/install/global/package.json"
+if [ -f "$GLOBAL_PKG" ]; then
+  python3 - "$GLOBAL_PKG" <<'PY' 2>/dev/null || true
+import json, sys
+p = sys.argv[1]
+with open(p) as f:
+    data = json.load(f)
+deps = data.get("dependencies") or {}
+changed = False
+for k in list(deps):
+    if k in ("", "bun-global", "@") or deps[k] in (".", "./"):
+        del deps[k]
+        changed = True
+if changed:
+    data["dependencies"] = deps
+    with open(p, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+PY
+fi
 if command -v bun >/dev/null 2>&1; then
   bun remove -g sure-lang >/dev/null 2>&1 || true
   bun remove -g @ >/dev/null 2>&1 || true

@@ -300,16 +300,9 @@ module.exports = function emit_io_host(hneed) {
     code += "      var deliver = (rec) => finish('0\\n' + rec.id + '\\n' + rec.method + '\\n' + rec.url + '\\n' + (rec.cookie || '') + '\\n' + rec.body);\n";
     code += "      if (srv.mailbox.length) deliver(srv.mailbox.shift());\n";
     code += "      else {\n";
-    code += "        var fn;\n";
-    code += "        var t = setTimeout(() => {\n";
-    code += "          var i = srv.waiters.indexOf(fn);\n";
-    code += "          if (i >= 0) srv.waiters.splice(i, 1);\n";
-    code += "          finish(host_ok(''));\n";
-    code += "        }, 3000);\n";
-    code += "        fn = (rec) => { clearTimeout(t); deliver(rec); };\n";
+    code += "        var fn = (rec) => deliver(rec);\n";
     code += "        srv.waiters.push(fn);\n";
     code += "        host_on_abort(lib, function() {\n";
-    code += "          clearTimeout(t);\n";
     code += "          var i = srv.waiters.indexOf(fn);\n";
     code += "          if (i >= 0) srv.waiters.splice(i, 1);\n";
     code += "        });\n";

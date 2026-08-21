@@ -563,6 +563,10 @@ async function run_prove_edges() {
     if (!emit_is_fresh(read_build_stamp(tmp), h3, "Main", tmp)) {
       console.log("fail emit fresh with dist"); failed += 1;
     } else console.log("ok   emit fresh with dist");
+    write_build_stamp(tmp, {ok: true, term: "Main", src_hash: h3, proved: false});
+    if (!emit_is_fresh(read_build_stamp(tmp), h3, "Main", tmp) || read_build_stamp(tmp).proved !== false) {
+      console.log("fail run stamp still fresh"); failed += 1;
+    } else console.log("ok   run stamp still fresh");
   } catch (e) {
     console.log("fail build stamp edges " + e);
     failed += 1;
@@ -1107,6 +1111,18 @@ async function run_prove_edges() {
   if (no_js.ok || no_js.error !== "missing js") {
     console.log("fail run missing js"); failed += 1;
   } else console.log("ok   run missing js");
+  var tmp_run = path.join(require("os").tmpdir(), "sure-run-ok-" + process.pid + ".js");
+  try {
+    fs.writeFileSync(tmp_run, "process.exit(0);\n");
+    var rrun = sure_run_js(tmp_run, false);
+    if (!rrun.ok) {
+      console.log("fail run spawn " + (rrun.error || "")); failed += 1;
+    } else console.log("ok   run spawn");
+  } catch (eRun) {
+    console.log("fail run spawn " + eRun); failed += 1;
+  } finally {
+    try { fs.unlinkSync(tmp_run); } catch (eUn) {}
+  }
   var has_bun = bun_available();
   if (typeof has_bun !== "boolean") {
     console.log("fail bun available type"); failed += 1;

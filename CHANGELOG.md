@@ -7,6 +7,7 @@ Removed the Kind-era `blog/` posts and `web/` Kindelia website (webpack, pm2, ev
 Truth pass (audit):
 
 - Residual `_` / `admit` / `?hole` fail `sure check`, `sure prove`, and `sure build`. `_` can no longer prove `Nat.add(2,2) == 5`.
+- `sure run` writes `dist/<Term>.js` and stamps it, then spawns a fresh Bun/Node on that file (the checker process is not the runtime). A second `sure run` with unchanged sources skips compile. HTTP `recv` waits for a request instead of polling every 3s.
 - `sure prove` only treats completed equality/`Equal` terms as proved. Aggregate JSON `proved` is true only when every result is proved. `Nat.add` checks; it is not a theorem.
 - Incremental build cache hashes `compiler.js`, `host-schema.js`, `gen-host.js`, the checker blob, FormCore, stdlib, lockfile, every `source-directories` entry, and transitive dependency sources.
 - Checker def cache is one record per name (source hash + blob key). `Synth.one` writes it. Empty/junk records are none. `sure test` runs `Main` in-process.

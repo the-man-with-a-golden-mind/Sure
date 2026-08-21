@@ -21,7 +21,7 @@ sure help env | cfg | ssr | ui | web
 | `sure build [Term]` | Prove theorems, then write `dist/<Term>.js` (tree-shaken) |
 | `sure build --html [Term]` | HTML page with Tailwind + daisyUI |
 | `sure emit [Term]` | Same as `build` |
-| `sure run [Term]` | Run `dist/` if fresh, else compile |
+| `sure run [Term]` | Emit `dist/<Term>.js` if needed, then spawn it |
 | `sure --bun run [Term]` | Run emitted JS with Bun |
 | `sure check <Term>` | Type-check one term (and project theorems) |
 | `sure Term` | Type-check one term |

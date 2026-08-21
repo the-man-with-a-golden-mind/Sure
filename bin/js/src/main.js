@@ -479,7 +479,7 @@ function print_help_topic(topic) {
     console.log("  sure prove                  # theorems must check");
     console.log("  sure gen JSON.dec.bool      # tests and proofs from the type");
     console.log("  sure build                  # writes dist/Main.js");
-    console.log("  sure run                    # node; sure --bun run for Bun");
+    console.log("  sure run                    # emit dist/ if needed, then spawn");
     console.log("");
     console.log("  sure build --html Html.Counter.client");
     console.log("                          # open dist/Html.Counter.client.html");
@@ -876,8 +876,8 @@ function print_help_all() {
   console.log("  sure build [Term]            # prove + emit dist/<Term>.js (tree-shaken)");
   console.log("  sure build --html [Term]     # emit dist/<Term>.html (Html.Client)");
   console.log("  sure emit [Term]             # same as build");
-  console.log("  sure run [Term]              # run dist/ or compile");
-  console.log("  sure --bun run [Term]        # run emitted JS with Bun");
+  console.log("  sure run [Term]              # emit dist/ if needed, then spawn");
+  console.log("  sure --bun run [Term]        # spawn emitted JS with Bun");
   console.log("  sure check <Term>            # type-check");
   console.log("  sure doc <Term>              # comment + type");
   console.log("  sure goal <Term>             # remaining holes");
@@ -1393,7 +1393,7 @@ async function build_and_emit(term, force, html) {
   var hash = manFile ? project_src_hash(manFile, {html: !!html, runtime: process.env.SURE_RUNTIME || "node"}) : "";
   var prev = manFile ? read_build_stamp(root) : null;
   var out = html ? path.join(root, sure_emit_html_file(term)) : emit_js_abs(root, term);
-  if (!force && manFile && !html && emit_is_fresh(prev, hash, term, root)) {
+  if (!force && manFile && !html && emit_is_fresh(prev, hash, term, root) && prev.proved !== false) {
     return {ok: true, skipped: true, file: out, term: term, src_hash: hash};
   }
   if (!force && manFile && html && prev && prev.ok && prev.term === term && prev.src_hash === hash && prev.html && fs.existsSync(out) && fs.statSync(out).size > 0) {
@@ -1437,7 +1437,7 @@ async function build_and_emit(term, force, html) {
     return {ok: false, error: written.error, file: "", term: term};
   }
   if (manFile) {
-    write_build_stamp(root, {ok: true, term: term, src_hash: hash, file: sure_emit_file(term)});
+    write_build_stamp(root, {ok: true, term: term, src_hash: hash, file: sure_emit_file(term), proved: true});
   }
   return {ok: true, skipped: false, file: written.file, bytes: written.bytes, term: term, src_hash: hash};
 }
@@ -2861,25 +2861,18 @@ function sure_run_js(js_path, use_bun, extra) {
   var abs = sure_js_abs(js_path);
   if (!abs || !fs.existsSync(abs)) return {ok: false, error: "missing js"};
   var want = sure_runtime_pick(!!use_bun, process.env.SURE_RUNTIME, bun_native()) === "bun";
-  var more = extra.map(function(a) { return " " + JSON.stringify(a); }).join("");
-  if (want && !bun_native()) {
-    if (!bun_available()) return {ok: false, error: "bun not found"};
-    try {
-      run_spawn("bun", [abs].concat(extra), {stdio: "inherit"});
-      return {ok: true, runtime: "bun", file: abs};
-    } catch (e) {
-      return {ok: false, error: String(e && e.message || e), runtime: "bun", file: abs};
-    }
-  }
-  var prev = process.argv;
-  process.argv = [process.execPath, abs, "--run"].concat(extra);
   try {
-    require(abs);
-    return {ok: true, runtime: bun_native() ? "bun" : "node", file: abs};
+    if (want) {
+      if (!bun_native() && !bun_available()) return {ok: false, error: "bun not found"};
+      var bun_bin = bun_native() ? process.execPath : "bun";
+      run_spawn(bun_bin, [abs].concat(extra), {stdio: "inherit"});
+      return {ok: true, runtime: "bun", file: abs};
+    }
+    var node_bin = bun_native() ? (process.env.SURE_NODE || "node") : process.execPath;
+    run_spawn(node_bin, ["--stack-size=10000", abs].concat(extra), {stdio: "inherit"});
+    return {ok: true, runtime: "node", file: abs};
   } catch (e) {
-    return {ok: false, error: String(e && e.message || e), runtime: bun_native() ? "bun" : "node", file: abs};
-  } finally {
-    process.argv = prev;
+    return {ok: false, error: String(e && e.message || e), runtime: want ? "bun" : "node", file: abs};
   }
 }
 
@@ -3244,9 +3237,24 @@ function spawn_term_run(term) {
       return;
     }
     console.log("compile " + term + " (no fresh dist/" + term + ".js)");
-    process.argv = [process.argv[0], process.argv[1], term, "--run"].concat(run_extra);
-    flag = "--run";
-    name = term;
+    var t0 = Date.now();
+    var js;
+    try { js = await compile_term_js(term, {}); }
+    catch (e) {
+      display_error(term, e);
+      process.exit(1);
+    }
+    var written = write_emit_js(rootRun, term, js);
+    if (!written.ok) {
+      console.error("emit failed: " + (written.error || term));
+      process.exit(1);
+    }
+    if (manRun) {
+      write_build_stamp(rootRun, {ok: true, term: term, src_hash: hashRun, file: sure_emit_file(term), proved: false});
+    }
+    console.log("emitted " + written.file + " (" + written.bytes + " bytes, " + (Date.now() - t0) + "ms)");
+    run_compiled_js(written.file, use_bun, run_extra);
+    return;
   }
 
   if (name === "help") {

@@ -361,8 +361,8 @@ function array_to_list(arr) {
 
 function sure_help_topic(s) {
   s = String(s || "").trim();
-  if (!s) return "start";
-  if (s === "all" || s === "prove" || s === "json" || s === "html" || s === "emit" || s === "ffi" || s === "gen" || s === "pkg" || s === "bun" || s === "worker" || s === "db" || s === "debug" || s === "lsp" || s === "pipe" || s === "time" || s === "cli" || s === "log" || s === "repl" || s === "test" || s === "cover" || s === "env" || s === "cfg" || s === "ssr" || s === "ui" || s === "web") return s;
+  if (!s || s === "help") return "start";
+  if (s === "start" || s === "all" || s === "prove" || s === "json" || s === "html" || s === "emit" || s === "ffi" || s === "gen" || s === "pkg" || s === "bun" || s === "worker" || s === "db" || s === "debug" || s === "lsp" || s === "pipe" || s === "time" || s === "cli" || s === "log" || s === "repl" || s === "test" || s === "cover" || s === "env" || s === "cfg" || s === "ssr" || s === "ui" || s === "web") return s;
   return null;
 }
 
@@ -463,7 +463,7 @@ function print_help_topic(topic) {
   var t = sure_help_topic(topic);
   if (!t) {
     console.error("unknown help topic: " + topic);
-    console.error("try: sure help prove | json | html | emit | ffi | gen | pkg | bun | worker | db | debug | lsp | pipe | time | cli | log | repl | test | env | cfg | ssr | ui | web | all");
+    console.error("try: sure help start | prove | json | html | emit | ffi | gen | pkg | bun | worker | db | debug | lsp | pipe | time | cli | log | repl | test | cover | env | cfg | ssr | ui | web | all");
     process.exit(1);
   }
   if (t === "start") {
@@ -471,13 +471,15 @@ function print_help_topic(topic) {
     console.log("");
     console.log("Write .sure files. The type checker proves them. Then you emit JavaScript.");
     console.log("");
-    console.log("  sure new myapp");
+    console.log("Usage: sure <command> [Term...]");
+    console.log("");
+    console.log("  sure new myapp              # scaffold");
     console.log("  sure new --package ada/boxes");
     console.log("  cd myapp");
-    console.log("  sure prove              # theorems must check");
-    console.log("  sure gen JSON.dec.bool  # tests and proofs from the type");
-    console.log("  sure build              # writes dist/Main.js");
-    console.log("  sure run                # node; sure --bun run for Bun");
+    console.log("  sure prove                  # theorems must check");
+    console.log("  sure gen JSON.dec.bool      # tests and proofs from the type");
+    console.log("  sure build                  # writes dist/Main.js");
+    console.log("  sure run                    # node; sure --bun run for Bun");
     console.log("");
     console.log("  sure build --html Html.Counter.client");
     console.log("                          # open dist/Html.Counter.client.html");

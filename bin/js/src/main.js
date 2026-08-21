@@ -961,20 +961,26 @@ async function build_and_emit(term, force, html) {
     if (manFile) write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
     return {ok: false, error: "unproved", file: "", term: term, report: batch};
   }
-  var prove_failed = 0;
-  if (manFile) prove_failed = await prove_project_theorems(false);
-  if (prove_failed) {
-    write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
-    return {ok: false, error: "unproved theorems", file: "", term: term};
+  if (manFile && theorems.length) {
+    var byName = {};
+    (batch.types || []).forEach(function(t) { if (t && t.name) byName[t.name] = t; });
+    for (var ti = 0; ti < theorems.length; ti++) {
+      var one = prove_result(theorems[ti], {
+        ok: batch.ok,
+        types: byName[theorems[ti]] ? [byName[theorems[ti]]] : [],
+        diagnostics: batch.diagnostics || [],
+        holes: batch.holes
+      });
+      if (!one.ok || !one.proved) {
+        write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
+        return {ok: false, error: "unproved theorems", file: "", term: term, name: theorems[ti]};
+      }
+    }
   }
   var mods = check_project_modules(true);
   if (!mods.ok) {
     if (manFile) write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
     return {ok: false, error: "unproved module", file: "", term: term, modules: mods};
-  }
-  if (manFile && theorems.length && batch.proved === false) {
-    write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
-    return {ok: false, error: "unproved theorems", file: "", term: term};
   }
   var js;
   try { js = await compile_term_js(term, html ? {module: true} : {}); }

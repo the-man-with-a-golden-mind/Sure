@@ -224,9 +224,13 @@ cell_input(row: Nat, col: Nat, w: Nat, cells: Map<String>): DOM
         "value",
         cell_get(row, col, cells),
         Html.attr(
-          "class",
-          "h-6 overflow-hidden truncate border-r border-b border-base-300 bg-base-100 px-1 text-xs leading-6 input input-ghost input-xs min-h-0 shrink-0 box-border",
-          Map.new<String>
+          "data-sure-key",
+          "c-" | Nat.show(row) | "-" | Nat.show(col),
+          Html.attr(
+            "class",
+            "h-6 overflow-hidden truncate border-r border-b border-base-300 bg-base-100 px-1 text-xs leading-6 input input-ghost input-xs min-h-0 shrink-0 box-border",
+            Map.new<String>
+          )
         )
       )
     ),

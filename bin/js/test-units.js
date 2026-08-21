@@ -106,6 +106,55 @@ check("mount no error", mount.indexOf('"error"') < 0 && mount.indexOf("visibilit
 check("wrap no cdn", emit.sure_html_wrap("Main", "module.exports={};").indexOf("cdn.tailwindcss.com") < 0);
 var patchSkip = dom_patch.surePatch({innerHTML: "", __sureHtml: "<p>x</p>"}, "<p>x</p>", {createElement: function(){ return {}; }});
 check("patch skip unchanged", patchSkip.skipped === true);
+(function() {
+  function node(tag) {
+    var n = {tag: tag, tagName: tag.toUpperCase(), childNodes: [], attrs: {}, scrollTop: 0, className: "", parentNode: null};
+    n.getAttribute = function(k) { return n.attrs[k] != null ? n.attrs[k] : null; };
+    n.setAttribute = function(k, v) { n.attrs[k] = String(v); };
+    n.appendChild = function(c) { c.parentNode = n; n.childNodes.push(c); return c; };
+    n.removeChild = function(c) { n.childNodes = n.childNodes.filter(function(x) { return x !== c; }); c.parentNode = null; return c; };
+    n.cloneNode = function(deep) {
+      var c = node(n.tag);
+      c.attrs = Object.assign({}, n.attrs);
+      c.className = n.className;
+      if (deep) n.childNodes.forEach(function(ch) { c.appendChild(ch.cloneNode ? ch.cloneNode(true) : ch); });
+      return c;
+    };
+    n.insertBefore = function(c, ref) {
+      if (c.parentNode === n) n.removeChild(c);
+      c.parentNode = n;
+      if (!ref) { n.childNodes.push(c); return c; }
+      var i = n.childNodes.indexOf(ref);
+      n.childNodes.splice(i < 0 ? n.childNodes.length : i, 0, c);
+      return c;
+    };
+    Object.defineProperty(n, "firstChild", { get: function() { return n.childNodes[0] || null; } });
+    Object.defineProperty(n, "nextSibling", { get: function() {
+      if (!n.parentNode) return null;
+      var xs = n.parentNode.childNodes;
+      var i = xs.indexOf(n);
+      return i >= 0 ? xs[i + 1] || null : null;
+    } });
+    return n;
+  }
+  var live = node("div");
+  var port = node("div");
+  port.setAttribute("data-sure-scroll", "1");
+  port.scrollTop = 48;
+  var row = node("div");
+  row.setAttribute("data-sure-key", "row-0");
+  port.appendChild(row);
+  live.appendChild(port);
+  var want = node("div");
+  var wp = node("div");
+  wp.setAttribute("data-sure-scroll", "1");
+  var wr = node("div");
+  wr.setAttribute("data-sure-key", "row-1");
+  wp.appendChild(wr);
+  want.appendChild(wp);
+  var okm = dom_patch.morphChildren(live, want, {createTextNode: function(t) { return {textContent: t}; }});
+  check("morph in place", okm && live.childNodes[0] === port && port.scrollTop === 48);
+})();
 
 // dual-run ReScript if present
 function loadRes(name) {

@@ -8,6 +8,9 @@ function nodeKey(el, i) {
   return el.getAttribute("data-sure-key") ||
     el.getAttribute("data-sure-scroll") ||
     el.getAttribute("data-sure-row") ||
+    el.getAttribute("data-sure-on-change") ||
+    el.getAttribute("data-sure-on-click") ||
+    el.getAttribute("data-sure-on-input") ||
     (el.id ? "#" + el.id : "") ||
     ((el.tagName || "") + ":" + i);
 }
@@ -102,6 +105,7 @@ function documentActive(el) {
 
 function morphChildren(live, want, document) {
   if (!live || !want) return false;
+  if (!live.appendChild || !live.removeChild) return false;
   var from = [];
   var kids = live.childNodes || [];
   for (var i = 0; i < kids.length; i++) from.push(kids[i]);
@@ -112,43 +116,53 @@ function morphChildren(live, want, document) {
   for (var f = 0; f < from.length; f++) {
     if (isElem(from[f])) keyed[nodeKey(from[f], f)] = from[f];
   }
-  var used = {};
-  var next = [];
+  var cursor = live.firstChild;
+  function place(node) {
+    if (!node) return false;
+    if (cursor === node) {
+      cursor = node.nextSibling;
+      return true;
+    }
+    if (live.insertBefore) live.insertBefore(node, cursor || null);
+    else if (cursor == null) live.appendChild(node);
+    else return false;
+    cursor = node.nextSibling;
+    return true;
+  }
   for (var t = 0; t < to.length; t++) {
     var w = to[t];
     if (!isElem(w)) {
       var text = w && (w.textContent != null ? w.textContent : w.nodeValue);
-      var cur = from[t];
-      if (cur && !isElem(cur) && live.replaceChild) {
-        if ((cur.textContent || cur.nodeValue) !== text) {
-          if (cur.nodeValue != null) cur.nodeValue = text;
-          else if (cur.textContent != null) cur.textContent = text;
+      if (cursor && !isElem(cursor)) {
+        if ((cursor.textContent || cursor.nodeValue) !== text) {
+          if (cursor.nodeValue != null) cursor.nodeValue = text;
+          else if (cursor.textContent != null) cursor.textContent = text;
         }
-        next.push(cur);
-        used[cur] = 1;
-      } else if (document.createTextNode) {
-        next.push(document.createTextNode(text || ""));
+        cursor = cursor.nextSibling;
+        continue;
       }
+      if (!document.createTextNode) return false;
+      if (!place(document.createTextNode(text || ""))) return false;
       continue;
     }
     var k = nodeKey(w, t);
     var hit = keyed[k];
     if (hit && (hit.tagName || "").toLowerCase() === (w.tagName || "").toLowerCase()) {
+      keyed[k] = null;
       copyAttrs(w, hit);
-      morphChildren(hit, w, document);
-      next.push(hit);
-      used[hit] = 1;
-    } else if (document.importNode) {
-      next.push(document.importNode(w, true));
-    } else if (w.cloneNode) {
-      next.push(w.cloneNode(true));
+      if (!morphChildren(hit, w, document)) return false;
+      if (!place(hit)) return false;
     } else {
-      return false;
+      var neu = document.importNode ? document.importNode(w, true) : (w.cloneNode ? w.cloneNode(true) : null);
+      if (!neu) return false;
+      if (!place(neu)) return false;
     }
   }
-  if (!live.appendChild || !live.removeChild) return false;
-  while (live.firstChild) live.removeChild(live.firstChild);
-  for (var n = 0; n < next.length; n++) live.appendChild(next[n]);
+  while (cursor) {
+    var drop = cursor;
+    cursor = cursor.nextSibling;
+    live.removeChild(drop);
+  }
   return true;
 }
 

@@ -37,7 +37,7 @@ Truth pass (audit):
 - LSP hover, rename, symbols, and definition walk `Sure.Defs.read` terms (`Sure.Term.ori` / `ref`) and show types with `Sure.Term.show`. `ident_bindings` remains for binders the term tree does not name.
 - Agent JSON-RPC is `bin/js/src/agent.js`. Package/project commands (`new`/`add`/`install`/`expose`, manifests, lock) are `bin/js/src/project.js`. Prove/QC/gen, the bounded self-test, and the repl are `commands.js` / `selftest.js` / `repl.js`.
 - There is no Chez / Scheme host. `bin/scm/` and `kind-scm` are gone. `sure Term --scm` is an error. The JavaScript host is the runtime.
-- Installable package `sure-lang` at the repo root: `bun add -g .` / `bun add -g github:the-man-with-a-golden-mind/Sure`. The tarball is CLI + `base/` + `vendor/formcore-js`. Unset `SURE_BASE` uses the packaged stdlib.
+- Installable package `sure-lang` at the repo root: `./bin/install-global` / `bun add -g sure-lang@file:"$PWD"` / `bun add -g github:the-man-with-a-golden-mind/Sure`. The tarball is CLI + `base/` + `vendor/formcore-js`. Unset `SURE_BASE` uses the packaged stdlib.
 - LSP rename follows `ident_bindings` per top-level definition. A parameter of `f` does not rename the global `x` used by `g`. The checker blob is regenerated from `Sure.api.export` (includes `host_abortable`).
 
 `when { pred: val ... } default rest` is the table form of nested `if` (first true wins). `case` stays constructor matching. `switch f { key: v }` stays one `A -> Bool`. `String.ok(s, banned)` is nonempty and none of those substrings. `String.has_none` is the same without the empty check.

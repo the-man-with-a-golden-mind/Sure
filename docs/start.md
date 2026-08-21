@@ -12,7 +12,7 @@ sure --version
 sure Main --run
 ```
 
-From a clone of this repository: `bun add -g .`
+From a clone of this repository: `./bin/install-global` (or `bun add -g sure-lang@file:"$PWD"`). Not `bun add -g .` — Bun's `-g` changes directory, so `.` becomes an unnamed `@` package and loops.
 
 From the repository without a global install:
 

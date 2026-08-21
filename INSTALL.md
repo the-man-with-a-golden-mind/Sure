@@ -15,10 +15,13 @@ Requires **Bun** (or Node 18+). `bin/sure` runs with Bun when `bun` is on `PATH`
 The installable package is **`sure-lang`**: CLI, checker, `base/` stdlib, and FormCore in one tree.
 
 ```bash
-# from this clone
-bun add -g .
+# from this clone (Bun's `bun add -g .` is not this package: -g changes
+# directory, so `.` becomes an unnamed `@` package and loops)
+./bin/install-global
+# same as: bun add -g sure-lang@file:"$PWD"
 
-# or from GitHub (no clone)
+# or from GitHub (no clone). If bun reports a dependency loop, remove first:
+# bun remove -g sure-lang
 bun add -g github:the-man-with-a-golden-mind/Sure
 
 sure --version

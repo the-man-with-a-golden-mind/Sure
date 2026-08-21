@@ -1,0 +1,24 @@
+#!/bin/sh
+# Install this clone as the global `sure` / `kind` binaries.
+# `bun add -g .` is not this: -g changes directory, so `.` becomes an unnamed
+# `@` package and Bun reports a dependency loop.
+SELF="$0"
+while [ -L "$SELF" ]; do
+  DIR="$(CDPATH= cd -- "$(dirname "$SELF")" && pwd)"
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in
+    /*) SELF="$LINK" ;;
+    *) SELF="$DIR/$LINK" ;;
+  esac
+done
+ROOT="$(CDPATH= cd -- "$(dirname "$SELF")/.." && pwd)"
+if command -v bun >/dev/null 2>&1; then
+  bun remove -g sure-lang >/dev/null 2>&1 || true
+  bun remove -g @ >/dev/null 2>&1 || true
+  exec bun add -g "sure-lang@file:${ROOT}"
+fi
+if command -v npm >/dev/null 2>&1; then
+  exec npm install -g "$ROOT"
+fi
+echo "need bun or npm to install sure-lang globally" >&2
+exit 1

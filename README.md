@@ -56,7 +56,7 @@ sure new /tmp/hello
 cd /tmp/hello && sure prove && sure run
 ```
 
-From a clone: `bun add -g .` (or `npm install -g .`). The package is `sure-lang`: CLI, `base/` stdlib, and FormCore.
+From a clone: `./bin/install-global` (or `bun add -g sure-lang@file:"$PWD"` / `npm install -g .`). Do not use `bun add -g .` — Bun's `-g` changes directory, so `.` becomes an unnamed `@` package and loops. The package is `sure-lang`: CLI, `base/` stdlib, and FormCore.
 
 Inside this repository the checker finds `base/` itself. Elsewhere:
 

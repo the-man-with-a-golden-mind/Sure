@@ -9,6 +9,9 @@
     "sure": "bin/sure",
     "kind": "bin/kind"
   },
+  "scripts": {
+    "install-global": "sh bin/install-global"
+  },
   "files": [
     "bin/sure",
     "bin/kind",

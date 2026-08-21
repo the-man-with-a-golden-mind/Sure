@@ -1,0 +1,6 @@
+// Unbounded local suite. Not CI. CI is Test.main / sure test.
+Test.full: IO<Unit>
+  IO {
+    get stats = Test.run(Test.suite)
+    Test.finish(stats)
+  }

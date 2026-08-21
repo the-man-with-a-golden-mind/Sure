@@ -1,3 +1,2 @@
-Html.el(tag: Html.Tag, props: Map<String>, style: Map<String>, kids: List<DOM>): DOM
-  DOM.node(Html.Tag.show(tag), props, style, kids)
-
+Html.el(tag: String, props: Map<String>, style: Map<String>, kids: List<DOM>): DOM
+  DOM.node(tag, props, style, kids)

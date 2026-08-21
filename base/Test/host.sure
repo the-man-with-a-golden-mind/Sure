@@ -1,4 +1,4 @@
-// Bounded host/runtime checks for CI. Not Test.suite / Test.main.
+// Bounded host/runtime checks. Test.main runs Test.ci.suite then this. Not Test.suite.
 Test.host.winner(e: Either<String, String>): String
   case e {
     left: e.value

@@ -1,7 +1,7 @@
 Html.input(value: String, msg: String): DOM
   Html.el(
-    Html.Tag.input,
-    Html.on(Html.Event.input, msg, Html.attr("value", value, Map.new<String>)),
+    "input",
+    Html.on("input", msg, Html.attr("value", value, Map.new<String>)),
     Map.new<String>,
     []
   )

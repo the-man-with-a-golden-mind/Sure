@@ -1,7 +1,7 @@
 Html.textarea(value: String, msg: String): DOM
   Html.el(
-    Html.Tag.textarea,
-    Html.on(Html.Event.input, msg, Map.new<String>),
+    "textarea",
+    Html.on("input", msg, Map.new<String>),
     Map.new<String>,
     [Html.text(value)]
   )

@@ -1,6 +1,6 @@
 "use strict";
-// Language server protocol. Rename/highlight/format use compiler.parse_document
-// and compiler.ident_bindings (not regex-over-the-file).
+// Language server protocol. Hover/definition/symbols/rename walk Sure.Defs.read
+// terms (Sure.Term.ori / ref) and Sure.Term.show. Binders still use ident_bindings.
 module.exports = function makeLsp(deps) {
   var compiler = deps.compiler;
   var kind = deps.kind;
@@ -149,34 +149,184 @@ function pair_nats(p) {
   return {from: Number(a) || 0, upto: Number(b) || 0};
 }
 
-function parser_defs(file, code) {
+function term_origin(orig) {
+  if (!orig) return null;
+  return pair_nats(orig);
+}
+
+function walk_term(term, hits, orig) {
+  if (!term || typeof term !== "object") return;
+  var tag = String(term._ || "");
+  if (tag === "Sure.Term.ori" || tag === "Kind.Term.ori") {
+    walk_term(term.expr, hits, term_origin(term.orig) || orig);
+    return;
+  }
+  if (tag === "Sure.Term.ref" || tag === "Kind.Term.ref") {
+    hits.push({kind: "ref", name: String(term.name || ""), orig: orig || null});
+    return;
+  }
+  if (tag === "Sure.Term.var" || tag === "Kind.Term.var") {
+    hits.push({kind: "var", name: String(term.name || ""), orig: orig || null});
+    return;
+  }
+  var keys = Object.keys(term);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    if (k === "_") continue;
+    var v = term[k];
+    if (typeof v === "function") {
+      try {
+        var dummy = {_: "Sure.Term.var", name: "", indx: 0};
+        var out = v;
+        var n = 0;
+        while (typeof out === "function" && n < 4) {
+          out = out(dummy);
+          n++;
+        }
+        walk_term(out, hits, orig);
+      } catch (eW) {}
+    } else if (v && typeof v === "object") {
+      if (v._ === "List.cons") {
+        var xs = v;
+        while (xs && xs._ === "List.cons") {
+          walk_term(xs.head, hits, orig);
+          xs = xs.tail;
+        }
+      } else {
+        walk_term(v, hits, orig);
+      }
+    }
+  }
+}
+
+function term_show(term) {
+  if (!kind || !term) return "";
+  var show = kind["Sure.Term.show"] || kind["Kind.Term.show"];
+  if (typeof show !== "function") return "";
+  try {
+    var s = show(term);
+    return s == null ? "" : String(s);
+  } catch (eS) {
+    return "";
+  }
+}
+
+function parser_info(file, code) {
   if (!kind) return null;
   var read = kind["Sure.Defs.read"] || kind["Kind.Defs.read"];
   var empty = kind["Sure.Map.new"] || kind["Kind.Map.new"];
   var keysFn = kind["BitsMap.keys"];
   var fromBits = kind["Sure.Name.from_bits"] || kind["Kind.Name.from_bits"];
   var getFn = kind["Sure.Map.get"] || kind["Kind.Map.get"];
-  var toBits = kind["Sure.Name.to_bits"] || kind["Kind.Name.to_bits"];
   if (typeof read !== "function" || !empty || typeof keysFn !== "function" || typeof fromBits !== "function") return null;
   var parsed;
   try { parsed = read(String(file || "open.sure"))(String(code || ""))(empty); }
   catch (e) { return null; }
   if (!parsed || parsed._ !== "Either.right") return null;
   var names = list_to_array(keysFn(parsed.value)).map(function(bits) { return fromBits(bits); });
-  var out = [];
+  var defs = [];
+  var byName = Object.create(null);
+  var hits = [];
   for (var i = 0; i < names.length; i++) {
     var defn = null;
     try {
-      if (typeof getFn === "function" && typeof toBits === "function") {
-        var got = getFn(toBits(names[i]))(parsed.value);
+      if (typeof getFn === "function") {
+        var got = getFn(names[i])(parsed.value);
         if (got && got._ === "Maybe.some") defn = got.value;
       }
     } catch (eG) { defn = null; }
     var orig = defn && defn.orig ? pair_nats(defn.orig) : {from: 0, upto: 0};
     var rng = lsp_range_from_origin(code, orig) || {start: {line: 0, character: 0}, end: {line: 0, character: (names[i] || "").length}};
-    out.push({name: names[i], line: rng.start.line, endLine: rng.end.line, from: orig.from, upto: orig.upto, range: rng, theorem: false, type: "", kind: "def"});
+    var typeShow = defn ? term_show(defn.type) : "";
+    var rec = {
+      name: names[i],
+      line: rng.start.line,
+      endLine: rng.end.line,
+      from: orig.from,
+      upto: orig.upto,
+      range: rng,
+      theorem: /==/.test(typeShow),
+      type: typeShow,
+      kind: "def"
+    };
+    defs.push(rec);
+    byName[names[i]] = rec;
+    var short = String(names[i] || "").split(".").pop();
+    if (short && !byName[short]) byName[short] = rec;
+    if (defn) {
+      walk_term(defn.type, hits, orig);
+      walk_term(defn.term, hits, orig);
+    }
   }
-  return out;
+  return {defs: defs, byName: byName, hits: hits, code: String(code || "")};
+}
+
+function parser_defs(file, code) {
+  var info = parser_info(file, code);
+  return info ? info.defs : null;
+}
+
+function parser_hit_at(info, offset, name) {
+  if (!info) return null;
+  var best = null;
+  var span = Infinity;
+  var hits = info.hits || [];
+  for (var i = 0; i < hits.length; i++) {
+    var h = hits[i];
+    if (!h || !h.orig) continue;
+    if (name && h.name !== name && String(h.name).split(".").pop() !== name) continue;
+    var from = h.orig.from;
+    var upto = h.orig.upto;
+    if (typeof from !== "number" || typeof upto !== "number") continue;
+    if (offset < from || offset > upto) continue;
+    var w = upto - from;
+    if (w < span) {
+      span = w;
+      best = h;
+    }
+  }
+  if (best) {
+    var rec = info.byName[best.name] || info.byName[String(best.name).split(".").pop()] || null;
+    return {name: best.name, orig: best.orig, kind: best.kind, typeShow: rec ? rec.type : "", def: rec};
+  }
+  if (name && info.byName[name]) {
+    var d = info.byName[name];
+    return {name: d.name, orig: {from: d.from, upto: d.upto}, kind: "def", typeShow: d.type, def: d};
+  }
+  return null;
+}
+
+function parser_rename(info, name, newName, text) {
+  if (!info || !name || !newName) return null;
+  var spans = [];
+  function add(from, upto) {
+    if (typeof from !== "number" || typeof upto !== "number" || upto <= from) return;
+    var slice = String(text || "").slice(from, upto);
+    if (slice !== name && slice !== String(name).split(".").pop()) return;
+    spans.push({from: from, upto: upto});
+  }
+  (info.defs || []).forEach(function(d) {
+    if (d.name === name || String(d.name).split(".").pop() === name) add(d.from, d.upto);
+  });
+  (info.hits || []).forEach(function(h) {
+    if (!h || !h.orig) return;
+    if (h.name === name || String(h.name).split(".").pop() === name) add(h.orig.from, h.orig.upto);
+  });
+  if (!spans.length) return null;
+  spans.sort(function(a, b) { return a.from - b.from; });
+  var next = "";
+  var p = 0;
+  var seen = {};
+  for (var i = 0; i < spans.length; i++) {
+    var key = spans[i].from + ":" + spans[i].upto;
+    if (seen[key]) continue;
+    seen[key] = true;
+    if (spans[i].from < p) continue;
+    next += String(text || "").slice(p, spans[i].from) + newName;
+    p = spans[i].upto;
+  }
+  next += String(text || "").slice(p);
+  return next;
 }
 
 function lsp_defs_in_text(text) {
@@ -425,10 +575,20 @@ async function lsp_handle(state, msg) {
   if (method === "textDocument/hover") {
     name = lsp_name_at(text, pos.line, pos.character);
     if (!name) { result(null); return {state: state, out: out}; }
-    var hover_rep = await agent_check_name(name);
-    var types = (hover_rep && hover_rep.types) || [];
-    var value = types[0] ? types[0].name + " : " + types[0].type : (name + (hover_rep && hover_rep.pretty ? "\n" + hover_rep.pretty : ""));
     var wr = lsp_word_range(text, line_col_offset(text, pos.line, pos.character));
+    var value = "";
+    var infoH = parser_info(uri || "buffer.sure", text);
+    if (infoH) {
+      var offH = line_col_offset(text, pos.line, pos.character);
+      var hitH = parser_hit_at(infoH, offH, name);
+      if (hitH && hitH.typeShow) value = (hitH.def && hitH.def.name ? hitH.def.name : hitH.name) + " : " + hitH.typeShow;
+      else if (infoH.byName[name] && infoH.byName[name].type) value = infoH.byName[name].name + " : " + infoH.byName[name].type;
+    }
+    if (!value) {
+      var hover_rep = await agent_check_name(name);
+      var types = (hover_rep && hover_rep.types) || [];
+      value = types[0] ? types[0].name + " : " + types[0].type : (name + (hover_rep && hover_rep.pretty ? "\n" + hover_rep.pretty : ""));
+    }
     result({contents: {kind: "markdown", value: "```sure\n" + value + "\n```"}, range: {start: wr.start, end: wr.end}});
     return {state: state, out: out};
   }
@@ -489,7 +649,9 @@ async function lsp_handle(state, msg) {
     name = lsp_name_at(text, pos.line, pos.character);
     var newN = params.newName;
     if (!name || newN == null || String(newN) === "") { error(-32602, "need name"); return {state: state, out: out}; }
-    var next = lsp_replace_word(text, off, String(newN));
+    var infoRn = parser_info(uri || "buffer.sure", text);
+    var next = infoRn ? parser_rename(infoRn, name, String(newN), text) : null;
+    if (next == null) next = lsp_replace_word(text, off, String(newN));
     if (next == null) { error(-32602, "need name"); return {state: state, out: out}; }
     state.docs[uri] = next;
     var changes = [{

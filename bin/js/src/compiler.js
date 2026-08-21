@@ -1172,6 +1172,7 @@ module.exports = {
   map_offset: map_offset,
   mod_resolve: mod_resolve,
   mod_name_ok: mod_name_ok,
+  mod_pkg_ok: mod_pkg_ok,
   mod_read_module: mod_read_module,
   mod_read_import: mod_read_import
 };

@@ -1,2 +1,2 @@
 Html.select(msg: String, kids: List<DOM>): DOM
-  Html.el(Html.Tag.select, Html.on(Html.Event.change, msg, Map.new<String>), Map.new<String>, kids)
+  Html.el("select", Html.on("change", msg, Map.new<String>), Map.new<String>, kids)

@@ -127,7 +127,10 @@ Cover.more.cfg_keys_empty: Sure.Cfg.keys(Sure.Cfg.empty) == []
 Cover.more.cfg_file_err: Sure.Cfg.file_err(File.Err.missing) == Sure.Cfg.Err.missing
   refl
 
-Cover.more.html_el: Html.el(Html.Tag.div, Map.new<String>, Map.new<String>, []) == DOM.node("div", Map.new<String>, Map.new<String>, [])
+Cover.more.html_el: Html.el("div", Map.new<String>, Map.new<String>, []) == DOM.node("div", Map.new<String>, Map.new<String>, [])
+  refl
+
+Cover.more.html_on: Html.on("click", "inc", Map.new<String>) == Map.set<String>("on-click", "inc", Map.new<String>)
   refl
 
 Cover.more.bytes_show_empty: Bytes.show([]) == "[]"

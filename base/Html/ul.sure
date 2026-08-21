@@ -1,2 +1,2 @@
 Html.ul(kids: List<DOM>): DOM
-  Html.el(Html.Tag.ul, Map.new<String>, Map.new<String>, kids)
+  Html.el("ul", Map.new<String>, Map.new<String>, kids)

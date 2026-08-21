@@ -1,2 +1,2 @@
 Html.div(props: Map<String>, kids: List<DOM>): DOM
-  Html.el(Html.Tag.div, props, Map.new<String>, kids)
+  Html.el("div", props, Map.new<String>, kids)

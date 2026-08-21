@@ -26,8 +26,8 @@ Each line runs real `draw` / `step` / `match` / `SSR` / `Sheet.window` work and 
 ```
 Html.Counter.view(n: Nat): DOM
   Html.el(
-    Html.Tag.button,
-    Html.on(Html.Event.click, "inc", Map.new<String>),
+    "button",
+    Html.on("click", "inc", Map.new<String>),
     Map.new<String>,
     [DOM.text(Nat.show(n))]
   )

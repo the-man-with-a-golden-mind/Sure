@@ -19,7 +19,7 @@ Truth pass (audit):
 - Live checker elaborates `module` / `import` in `Sure.Parser.file`. The host does not rewrite identifiers. `import M exposing (..)` loads `M` then resolves short names from defs. `when` / HTML / `admit` still expand in the host. `Sure.Mod.from_imp` keeps `import Boxes exposing (Boxes)` as `Boxes`, not `Boxes.Boxes`.
 - `sure.lock` stores `sha256` of the installed tree. `sure install` fails on mismatch. Missing hash is recorded, not a protocol error.
 - `IO.bracket` always runs `release` on a **fresh** AbortController, so a cancelled `use` still runs user `release`. `File.bracket` uses it.
-- `sure test` is a bounded suite (listed theorems, checks, `Main --run`, `Test.host`, prove-edges). It does not type-check `Prove.all` or run `Test.main`. `Test.host` is the CI host/runtime slice: packed argv (including newlines) and an `IO.race` of `IO.bracket` that must print `RELEASED`.
+- `sure test` is a bounded suite (listed theorems, checks, `Main --run`, `Test.main`, prove-edges). It does not type-check `Prove.all` or run `Test.full`. `Test.main` is `Test.ci.suite` then `Test.host` (packed argv including newlines, and an `IO.race` of `IO.bracket` that must print `RELEASED`).
 - Checker cache keys include the canonical stdlib and project realpaths. Records whose file is outside the current root, or that contain `..`, miss. Cache load is a worklist plus `IO.yield` (no recursive dep explosion). Bootstrap and `SURE_CACHE=0` skip `.cache` at the host.
 - `Proc.join_args` / host argv parse are length-prefixed. An argument may contain newlines. Env is packed key/value pairs, not `;` / `=`.
 - Module qualification matches `Sure.Mod.resolve` / `Sure.Parser.file.rewrite` (locals, then `Module.name`, then import exposing).
@@ -30,11 +30,12 @@ Truth pass (audit):
 - `format_source` keeps relative indent inside a definition. LSP rename/highlight follow `get`/`let`/`{}` bindings, not every same token.
 - `Proc.env.pack` / `Proc.run.with` pack environment pairs. Junk packs are `bad_pack`.
 - `IO.bracket`: if `use` succeeds, a `release` throw is the result; if `use` fails, that error wins.
-- `Test.main` prints group phases, 15s timeouts on `Test.io`, and `SURE_TEST_GROUP` sharding. CI runs `Test.ci` (a small behavioral suite), not the full `Test.suite`.
+- `Test.full` is the unbounded `Test.suite` runner (group phases, 15s `Test.io` timeouts, `SURE_TEST_GROUP`). CI runs `Test.main` (`Test.ci.suite` + `Test.host`), not `Test.full`.
 - LSP protocol lives in `bin/js/src/lsp.js`. Symbols use `parse_document` block ranges; rename/highlight bind `get`/`let`, `{ }`, def params, and `(x)` lambdas. Global rename also edits other files via `rename_global`.
 - QC sample generation is `bin/js/src/qc.js`. HTML emit is `bin/js/src/emit.js`. CI behavioral tests are `Test.ci`.
-- `Html.Counter.client` JS emit no longer compiles the 120-way `Html.Event.read` / `Html.Tag.read` tables (`DOM.render` uses `Html.ok_ident`; `Html.Event.Data.parse` does not look up the event enum). Cold `--js` is ~1s, not minutes.
-- LSP document symbols and go-to-definition use `Sure.Defs.read` (`Sure.Parser.file`) when the checker blob can parse the buffer.
+- `Html.el` / `Html.on` take `String` tag and event names (`DOM.node` / `Map.set "on-"|ev`). Clients (`Html.Echo`, Tweeter, Sheet, examples) do not compile `Html.Tag.show` / `Html.Event.show`. `Html.Event.Data.parse` still does not look up the event enum. Cold `--js` of `Html.Echo.client` is seconds, not minutes.
+- LSP hover, rename, symbols, and definition walk `Sure.Defs.read` terms (`Sure.Term.ori` / `ref`) and show types with `Sure.Term.show`. `ident_bindings` remains for binders the term tree does not name.
+- Agent JSON-RPC is `bin/js/src/agent.js`. Package/project commands (`new`/`add`/`install`/`expose`, manifests, lock) are `bin/js/src/project.js`.
 
 `when { pred: val ... } default rest` is the table form of nested `if` (first true wins). `case` stays constructor matching. `switch f { key: v }` stays one `A -> Bool`. `String.ok(s, banned)` is nonempty and none of those substrings. `String.has_none` is the same without the empty check.
 

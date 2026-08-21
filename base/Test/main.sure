@@ -1,5 +1,14 @@
+// Bounded CI runner: Test.ci.suite then Test.host. Not Test.suite.
+// Unbounded local suite is Test.full.
 Test.main: IO<Unit>
   IO {
-    get stats = Test.run(Test.suite)
-    Test.finish(stats)
+    get stats = Test.run(Test.ci.suite)
+    open stats
+    case Nat.gtn(stats.failed, 0) {
+      true: Test.finish(stats)
+      false: IO {
+        Test.host
+        Test.finish(stats)
+      }
+    }
   }

@@ -73,13 +73,13 @@ qget(q: String, key: String): String
   else qget.go(String.split(q, "&"), key)
 
 box(cls: String, kids: List<DOM>): DOM
-  Html.el(Html.Tag.div, Html.attr("class", cls, Map.new<String>), Map.new<String>, kids)
+  Html.el("div", Html.attr("class", cls, Map.new<String>), Map.new<String>, kids)
 
 input(msg: String, kind: String, val: String, ph: String): DOM
   Html.el(
-    Html.Tag.input,
+    "input",
     Html.on(
-      Html.Event.change,
+      "change",
       msg,
       Html.attr(
         "value",
@@ -97,8 +97,8 @@ input(msg: String, kind: String, val: String, ph: String): DOM
 
 btn(msg: String, label: String, cls: String): DOM
   Html.el(
-    Html.Tag.button,
-    Html.on(Html.Event.click, msg, Html.attr("class", cls, Map.new<String>)),
+    "button",
+    Html.on("click", msg, Html.attr("class", cls, Map.new<String>)),
     Map.new<String>,
     [Html.text(label)]
   )

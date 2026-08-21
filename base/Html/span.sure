@@ -1,2 +1,2 @@
 Html.span(props: Map<String>, kids: List<DOM>): DOM
-  Html.el(Html.Tag.span, props, Map.new<String>, kids)
+  Html.el("span", props, Map.new<String>, kids)

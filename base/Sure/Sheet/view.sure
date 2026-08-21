@@ -1,5 +1,5 @@
 Sure.Sheet.box(cls: String, props: Map<String>, kids: List<DOM>): DOM
-  Html.el(Html.Tag.div, Html.attr("class", cls, props), Map.from_list<String>([]), kids)
+  Html.el("div", Html.attr("class", cls, props), Map.from_list<String>([]), kids)
 
 Sure.Sheet.w_cls(w: Nat): String
   "w-[" | Nat.show(w) | "px] min-w-[" | Nat.show(w) | "px] max-w-[" | Nat.show(w) | "px] shrink-0 box-border"
@@ -7,15 +7,15 @@ Sure.Sheet.w_cls(w: Nat): String
 Sure.Sheet.handle(i: Nat): DOM
   Sure.Sheet.box(
     "tooltip tooltip-left absolute inset-y-0 right-0 w-1.5 cursor-col-resize bg-base-300 hover:bg-primary",
-    Html.on(Html.Event.mousedown, "down-" | Nat.show(i), Html.attr("data-tip", "Resize", Map.from_list<String>([]))),
+    Html.on("mousedown", "down-" | Nat.show(i), Html.attr("data-tip", "Resize", Map.from_list<String>([]))),
     []
   )
 
 Sure.Sheet.name_input(i: Nat, name: String): DOM
   Html.el(
-    Html.Tag.input,
+    "input",
     Html.on(
-      Html.Event.change,
+      "change",
       "name-" | Nat.show(i),
       Html.attr(
         "value",
@@ -98,7 +98,7 @@ Sure.Sheet.rows_view.go(i: Nat, ws: List<Nat>, xs: List<Sure.Sheet.Row>): List<D
 Sure.Sheet.overlay_of(u: Unit): DOM
   Sure.Sheet.box(
     "fixed inset-0 z-50 cursor-col-resize",
-    Html.on(Html.Event.mousemove, "move", Html.on(Html.Event.mouseup, "up", Map.from_list<String>([]))),
+    Html.on("mousemove", "move", Html.on("mouseup", "up", Map.from_list<String>([]))),
     []
   )
 
@@ -143,7 +143,7 @@ Sure.Sheet.view(m: Sure.Sheet.Model): DOM
   )
   let port = Sure.Sheet.box(
     "relative h-[480px] overflow-auto bg-base-100",
-    Html.on(Html.Event.scroll, "scroll", Html.attr("data-sure-scroll", "1", Map.from_list<String>([]))),
+    Html.on("scroll", "scroll", Html.attr("data-sure-scroll", "1", Map.from_list<String>([]))),
     [Sure.Sheet.header(m.widths, m.names), space]
   )
   let card = Sure.Sheet.box(

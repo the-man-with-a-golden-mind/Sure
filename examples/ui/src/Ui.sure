@@ -12,12 +12,12 @@ init: Model
   Model.new(0)
 
 box(cls: String, kids: List<DOM>): DOM
-  Html.el(Html.Tag.div, Html.attr("class", cls, Map.new<String>), Map.new<String>, kids)
+  Html.el("div", Html.attr("class", cls, Map.new<String>), Map.new<String>, kids)
 
 btn(msg: String, label: String): DOM
   Html.el(
-    Html.Tag.button,
-    Html.on(Html.Event.click, msg, Html.attr("class", "btn btn-primary", Map.new<String>)),
+    "button",
+    Html.on("click", msg, Html.attr("class", "btn btn-primary", Map.new<String>)),
     Map.new<String>,
     [Html.text(label)]
   )

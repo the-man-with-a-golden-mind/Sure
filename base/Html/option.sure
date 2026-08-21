@@ -1,2 +1,2 @@
 Html.option(value: String, kids: List<DOM>): DOM
-  Html.el(Html.Tag.option, Html.attr("value", value, Map.new<String>), Map.new<String>, kids)
+  Html.el("option", Html.attr("value", value, Map.new<String>), Map.new<String>, kids)

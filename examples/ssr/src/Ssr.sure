@@ -14,11 +14,11 @@ document(title: String, body: DOM): String
   | "</body></html>"
 
 box(cls: String, kids: List<DOM>): DOM
-  Html.el(Html.Tag.div, Html.attr("class", cls, Map.new<String>), Map.new<String>, kids)
+  Html.el("div", Html.attr("class", cls, Map.new<String>), Map.new<String>, kids)
 
 link(href: String, label: String): DOM
   Html.el(
-    Html.Tag.a,
+    "a",
     Html.attr("href", href, Html.attr("class", "link link-primary", Map.new<String>)),
     Map.new<String>,
     [Html.text(label)]

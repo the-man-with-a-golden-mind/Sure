@@ -1,2 +1,2 @@
 Html.img(src: String): DOM
-  Html.el(Html.Tag.img, Html.attr("src", src, Map.new<String>), Map.new<String>, [])
+  Html.el("img", Html.attr("src", src, Map.new<String>), Map.new<String>, [])

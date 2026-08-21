@@ -1,2 +1,2 @@
 Html.button(msg: String, kids: List<DOM>): DOM
-  Html.el(Html.Tag.button, Html.on(Html.Event.click, msg, Map.new<String>), Map.new<String>, kids)
+  Html.el("button", Html.on("click", msg, Map.new<String>), Map.new<String>, kids)

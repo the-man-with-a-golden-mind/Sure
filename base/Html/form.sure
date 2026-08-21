@@ -1,2 +1,2 @@
 Html.form(msg: String, kids: List<DOM>): DOM
-  Html.el(Html.Tag.form, Html.on(Html.Event.submit, msg, Map.new<String>), Map.new<String>, kids)
+  Html.el("form", Html.on("submit", msg, Map.new<String>), Map.new<String>, kids)

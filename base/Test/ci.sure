@@ -1,4 +1,4 @@
-// Bounded behavioral slice for CI. Not Test.suite / Test.main.
+// Bounded behavioral slice. Test.main runs this then Test.host. Not Test.suite.
 Test.ci.suite: Test
   Test.group("CI", [
     Test.unit("nat empty", Test.nat(Nat.read_base(10, ""), 0)),

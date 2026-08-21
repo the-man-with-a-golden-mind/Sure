@@ -56,10 +56,10 @@ kind-scm Main --run
 
 ```bash
 ./bin/sure --lib    # bounded prelude checks (not Prove.all)
-./bin/sure --test   # bounded theorems, checks, Main, Test.host, prove-edges
+./bin/sure --test   # bounded theorems, checks, Main, Test.main, prove-edges
 ```
 
-`Prove.all` and `Test.main` are unbounded and are not CI. CI runs `sure test` and `sure Test.ci --run`. Locally: `sure Prove.all` and `sure Test.main --run` (optional `SURE_TEST_GROUP`).
+`Prove.all` and `Test.full` are unbounded and are not CI. CI runs `sure test` and `sure Test.main --run` (`Test.ci.suite` then `Test.host`). Locally: `sure Prove.all` and `sure Test.full --run` (optional `SURE_TEST_GROUP`).
 
 `sure App/` and `sure User/` still work when you ask for them.
 

@@ -41,10 +41,10 @@ sure help env | cfg | ssr | ui | web
 | `sure bench <Term>` | Time type-check |
 | `sure Sure.Web.bench --run` | Time Html / Ui / Ssr / Sheet at runtime |
 | `sure fmt <Term>` | Pretty-print |
-| `sure test` / `sure --test` | Bounded theorems, checks, `Main --run`, `Test.host`, `Test.ci`, prove-edges. Not `Prove.all` or `Test.main`. |
+| `sure test` / `sure --test` | Bounded theorems, checks, `Main --run`, `Test.main` (`Test.ci.suite` + `Test.host`), prove-edges. Not `Prove.all` or `Test.full`. |
 | `sure cover` / `sure cover --fail` | Textual public-API mention coverage (need 90%; not branch coverage) |
 | `sure repl` | `:help :quit :check :prove :type :goal :fill :debug :norm :run :docs` |
-| `sure lsp` | Language server. Format, symbols, rename, references, highlight, and completion use `compiler.parse_document` / `compiler.idents`. |
+| `sure lsp` | Language server. Symbols, hover, definition, and rename walk `Sure.Defs.read` / `Sure.Term`. Binders still use `compiler.ident_bindings`. |
 | `sure agent` | JSON-RPC compiler-as-tool |
 | `sure add` / `remove` | Dependencies |
 | `sure install` | Materialize `sure.lock` pins (git rev, not latest HEAD) |
@@ -61,7 +61,7 @@ A failing test or a false equality exits **1**. There is no silent success.
 | `SURE_PATH` / `KIND_PATH` | Extra `:`-separated `.sure` dirs |
 | `SURE_CACHE=0` | Skip the definition cache (bootstrap sets this) |
 | `SURE_NODE` | Node 18+ binary for `./bin/sure` and `Proc.exec` in tests |
-| `SURE_TEST_GROUP` | Substring of a `Test.group` name; `Test.main` runs only matching groups |
+| `SURE_TEST_GROUP` | Substring of a `Test.group` name; `Test.full` / `Test.run` skip groups that do not match |
 | `SURE_RUNTIME=bun` | Same as `--bun` |
 | `SURE_DEBUG` | `off` \| `error` \| `info` \| `trace` |
 | `SURE_DEBUG_OPT` | `host` \| `term` \| `holes` \| `qc` \| `all` |
@@ -86,7 +86,7 @@ Empty line is ignored. `:xyz` is not a command. `:check` with no name fails.
 ./bin/sure cover --fail
 ```
 
-`sure test` is the bounded CI suite. CI also runs `Test.ci`. `Prove.all` and `Test.main` remain for local unbounded runs (`sure Prove.all`, `sure Test.main --run`, optional `SURE_TEST_GROUP`).
+`sure test` is the bounded CI suite. CI also runs `Test.main` (`Test.ci.suite` then `Test.host`). `Prove.all` and `Test.full` remain for local unbounded runs (`sure Prove.all`, `sure Test.full --run`, optional `SURE_TEST_GROUP`).
 
 Run these from a tree that contains `base/` (or set `SURE_BASE`).
 

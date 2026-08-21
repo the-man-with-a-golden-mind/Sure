@@ -140,7 +140,7 @@ read_widths(s: String): List<Nat>
     if Nat.eql(n, cols) then xs else widths_new
 
 box(cls: String, props: Map<String>, kids: List<DOM>): DOM
-  Html.el(Html.Tag.div, Html.attr("class", cls, props), Map.new<String>, kids)
+  Html.el("div", Html.attr("class", cls, props), Map.new<String>, kids)
 
 w_cls(w: Nat): String
   "w-[" | Nat.show(w) | "px] min-w-[" | Nat.show(w) | "px] max-w-[" | Nat.show(w) | "px] shrink-0 box-border"
@@ -148,7 +148,7 @@ w_cls(w: Nat): String
 grip(i: Nat): DOM
   box(
     "tooltip tooltip-left absolute inset-y-0 right-0 w-1.5 cursor-col-resize bg-base-300 hover:bg-primary",
-    Html.on(Html.Event.mousedown, "down-" | Nat.show(i), Html.attr("data-tip", "Resize", Map.new<String>)),
+    Html.on("mousedown", "down-" | Nat.show(i), Html.attr("data-tip", "Resize", Map.new<String>)),
     []
   )
 
@@ -210,7 +210,7 @@ rows.go(i: Nat, n: Nat, ws: List<Nat>): List<DOM>
 overlay: DOM
   box(
     "fixed inset-0 z-50 cursor-col-resize",
-    Html.on(Html.Event.mousemove, "move", Html.on(Html.Event.mouseup, "up", Map.new<String>)),
+    Html.on("mousemove", "move", Html.on("mouseup", "up", Map.new<String>)),
     []
   )
 
@@ -227,7 +227,7 @@ view(m: Model): DOM
   )
   let port = box(
     "relative h-[480px] overflow-auto bg-base-100",
-    Html.on(Html.Event.scroll, "scroll", Html.attr("data-sure-scroll", "1", Map.new<String>)),
+    Html.on("scroll", "scroll", Html.attr("data-sure-scroll", "1", Map.new<String>)),
     [header(m.widths), space]
   )
   let bar = box("navbar bg-primary text-primary-content min-h-12 py-0", Map.new<String>, [

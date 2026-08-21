@@ -45,6 +45,44 @@ var ADD_PATH = "";
 var ORIG_CWD = process.cwd();
 var STDLIB_BASE = null;
 
+var project = require("./project")({
+  fs: fs,
+  path: path,
+  ORIG_CWD: ORIG_CWD,
+  spawnSync: spawnSync,
+  mod_name_ok: compiler.mod_name_ok,
+  mod_pkg_ok: compiler.mod_pkg_ok
+});
+var find_manifest = project.find_manifest;
+var prepend_path_env = project.prepend_path_env;
+var read_manifest = project.read_manifest;
+var write_manifest = project.write_manifest;
+var man_kind = project.man_kind;
+var man_src_dirs = project.man_src_dirs;
+var man_direct = project.man_direct;
+var man_set_direct = project.man_set_direct;
+var man_exposed = project.man_exposed;
+var pkg_mod_name = project.pkg_mod_name;
+var github_url_of = project.github_url_of;
+var dep_root = project.dep_root;
+var dep_src_paths = project.dep_src_paths;
+var project_src_path = project.project_src_path;
+var apply_project_env = project.apply_project_env;
+var lock_path = project.lock_path;
+var read_lock = project.read_lock;
+var write_lock = project.write_lock;
+var dep_tree_hash = project.dep_tree_hash;
+var run_git = project.run_git;
+var git_rev_parse = project.git_rev_parse;
+var git_clone_pinned = project.git_clone_pinned;
+var dep_version_of = project.dep_version_of;
+var cmd_new = project.cmd_new;
+var cmd_add = project.cmd_add;
+var cmd_remove = project.cmd_remove;
+var cmd_install = project.cmd_install;
+var cmd_expose = project.cmd_expose;
+
+
 // Bounded gates. Prove.all / Test.suite / Sure.*.all are Unit bundles and are not CI.
 var BOUNDED_THEOREMS = [
   "Example.Spec.add2",
@@ -80,7 +118,9 @@ var BOUNDED_THEOREMS = [
   "IO.bind_ok.err",
   "IO.bind_ok.ok",
   "Proc.env.pack.empty",
-  "Proc.env.pack.one"
+  "Proc.env.pack.one",
+  "Cover.more.html_el",
+  "Cover.more.html_on"
 ];
 var BOUNDED_CHECKS = [
   "Nat.add",
@@ -506,6 +546,7 @@ function print_help_topic(topic) {
     console.log("  sure run Sure.Tweeter.serve");
     console.log("  open dist/Html.Counter.client.html");
     console.log("");
+    console.log("Html.el(tag, ...) and Html.on(ev, ...) take String names, not Html.Tag / Html.Event.");
     console.log("Every Html.Event is listened. Clicks/input call step in the page.");
     console.log("sure help ui");
     return;
@@ -610,8 +651,9 @@ function print_help_topic(topic) {
     console.log("");
     console.log("initialize, hover, definition, completion, format, rename,");
     console.log("references, document symbols, highlight, workspace symbols, code actions.");
-    console.log("Format, symbols, rename, references, highlight, and completion use");
-    console.log("compiler.parse_document / compiler.idents (strings and comments skipped).");
+    console.log("Hover, definition, symbols, and rename walk Sure.Defs.read / Sure.Term");
+    console.log("(ori/ref) and Sure.Term.show. Binders still use compiler.ident_bindings.");
+    console.log("Strings and comments are not identifiers.");
     console.log("didOpen / didChange / didClose / didSave publish diagnostics.");
     console.log("Junk methods with an id are Method not found. Parse errors are -32700.");
     console.log("sure help debug");
@@ -676,12 +718,14 @@ function print_help_topic(topic) {
     return;
   }
   if (t === "test") {
-    console.log("Run the prover, the runtime suite, and the prove-edge cases.");
+    console.log("Bounded CI: prover list, checks, Main, Test.main, prove-edge cases.");
     console.log("");
     console.log("  sure test");
     console.log("  sure --test");
+    console.log("  sure Test.main --run     # Test.ci.suite then Test.host");
+    console.log("  sure Test.full --run     # unbounded Test.suite (not CI)");
     console.log("");
-    console.log("A failing test or a false equality exits 1.");
+    console.log("A failing test or a false equality exits 1. Prove.all is not CI.");
     console.log("sure help cover");
     return;
   }
@@ -1148,123 +1192,6 @@ async function check_prelude() {
   return failed;
 }
 
-function find_manifest(start) {
-  var dir = path.resolve(start);
-  while (true) {
-    var sure = path.join(dir, "sure.json");
-    if (fs.existsSync(sure)) return sure;
-    var legacy = path.join(dir, "kind.json");
-    if (fs.existsSync(legacy)) return legacy;
-    var parent = path.dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
-
-function prepend_path_env(extra) {
-  if (!extra) return;
-  var cur = process.env.SURE_PATH || process.env.KIND_PATH || "";
-  var joined = extra + (cur ? ":" + cur : "");
-  process.env.SURE_PATH = joined;
-  process.env.KIND_PATH = joined;
-}
-
-function read_manifest(file) {
-  return JSON.parse(fs.readFileSync(file, "utf8"));
-}
-
-function write_manifest(file, man) {
-  fs.writeFileSync(file, JSON.stringify(man, null, 2) + "\n");
-}
-
-function man_kind(man) {
-  return man && man.type === "package" ? "package" : "application";
-}
-
-function man_src_dirs(man, root) {
-  var dirs = man && man["source-directories"];
-  if (!Array.isArray(dirs) || !dirs.length) dirs = [man && man.src ? man.src : "src"];
-  return dirs.map(function(d) { return path.resolve(root, String(d)); });
-}
-
-function man_direct(man) {
-  var d = (man && man.dependencies) || {};
-  if (d && typeof d === "object" && (d.direct || d.indirect) && !d.path && !d.git && !d.version) {
-    var direct = d.direct || {};
-    if (typeof direct === "object" && !Array.isArray(direct)) return direct;
-  }
-  var flat = {};
-  Object.keys(d).forEach(function(k) {
-    if (k !== "direct" && k !== "indirect") flat[k] = d[k];
-  });
-  return flat;
-}
-
-function man_set_direct(man, name, spec) {
-  var cur = man_direct(man);
-  cur[name] = spec;
-  var ind = {};
-  var d = man.dependencies || {};
-  if (d && d.indirect && typeof d.indirect === "object") ind = d.indirect;
-  man.dependencies = {direct: cur, indirect: ind};
-  return man;
-}
-
-function man_exposed(man) {
-  var xs = man && man["exposed-modules"];
-  if (!Array.isArray(xs)) return [];
-  return xs.map(String);
-}
-
-function pkg_mod_name(pkg) {
-  var last = String(pkg || "").split("/").pop() || "";
-  var parts = last.split("-").filter(Boolean);
-  return parts.map(function(p) {
-    return p.charAt(0).toUpperCase() + p.slice(1);
-  }).join("");
-}
-
-function github_url_of(spec) {
-  if (!spec) return "";
-  if (/^https?:\/\/|^git@/.test(spec)) return spec;
-  if (mod_pkg_ok(spec)) return "https://github.com/" + spec + ".git";
-  return "";
-}
-
-function dep_root(root, name, spec) {
-  if (spec && spec.path) return path.resolve(root, spec.path);
-  return path.join(root, "sure_modules", name);
-}
-
-function dep_src_paths(root, name, spec) {
-  var dest = dep_root(root, name, spec);
-  if (!fs.existsSync(dest)) return [];
-  var depMan = path.join(dest, "sure.json");
-  if (fs.existsSync(depMan)) {
-    try {
-      return man_src_dirs(read_manifest(depMan), dest).filter(function(p) { return fs.existsSync(p); });
-    } catch (e) {}
-  }
-  var src = path.join(dest, "src");
-  return fs.existsSync(src) ? [src] : [dest];
-}
-
-function project_src_path(manFile) {
-  var root = path.dirname(manFile);
-  var man = read_manifest(manFile);
-  var extras = man_src_dirs(man, root);
-  var deps = man_direct(man);
-  Object.keys(deps).forEach(function(n) {
-    dep_src_paths(root, n, deps[n]).forEach(function(p) { extras.push(p); });
-  });
-  return extras.filter(function(p) { return fs.existsSync(p); }).join(":");
-}
-
-function apply_project_env() {
-  var man = find_manifest(ORIG_CWD);
-  if (!man) return;
-  prepend_path_env(project_src_path(man));
-}
 
 var _compiler_input_hash = null;
 
@@ -1300,6 +1227,8 @@ function compiler_input_hash() {
     path.join(__dirname, "lsp.js"),
     path.join(__dirname, "qc.js"),
     path.join(__dirname, "emit.js"),
+    path.join(__dirname, "agent.js"),
+    path.join(__dirname, "project.js"),
     path.join(__dirname, "gen-host.js"),
     path.join(__dirname, "sure.js"),
     path.join(formcore_path, "FmcToJs.js"),
@@ -2283,385 +2212,6 @@ function check_project_modules(quiet) {
   return {ok: errors.length === 0, errors: errors};
 }
 
-function lock_path(root, manFile) {
-  return path.join(root, fs.existsSync(path.join(root, "sure.lock")) || (manFile && path.basename(manFile) === "sure.json")
-    ? "sure.lock" : "kind.lock");
-}
-
-function read_lock(root, manFile) {
-  try { return JSON.parse(fs.readFileSync(lock_path(root, manFile), "utf8")); } catch (e) { return {}; }
-}
-
-function write_lock(root, manFile, lock) {
-  fs.writeFileSync(lock_path(root, manFile), JSON.stringify(lock, null, 2) + "\n");
-}
-
-function dep_tree_hash(dir) {
-  var crypto = require("crypto");
-  var h = crypto.createHash("sha256");
-  function walk(p, rel) {
-    var names;
-    try { names = fs.readdirSync(p).sort(); } catch (e) { return; }
-    names.forEach(function(n) {
-      if (n === ".git" || n === "node_modules" || n === ".cache") return;
-      var fp = path.join(p, n);
-      var r = rel ? rel + "/" + n : n;
-      var st;
-      try { st = fs.statSync(fp); } catch (eS) { return; }
-      if (st.isDirectory()) walk(fp, r);
-      else {
-        h.update(r);
-        h.update("\0");
-        try { h.update(fs.readFileSync(fp)); } catch (eR) { h.update("missing"); }
-        h.update("\0");
-      }
-    });
-  }
-  if (!dir || !fs.existsSync(dir)) return "";
-  walk(dir, "");
-  return h.digest("hex");
-}
-
-function run_git(args, opts) {
-  var r = spawnSync("git", args, Object.assign({encoding: "utf8"}, opts || {}));
-  if (r.status !== 0) {
-    var msg = String((r.stderr || r.stdout || "git failed")).trim();
-    throw new Error(msg || "git failed");
-  }
-  return r;
-}
-
-function git_rev_parse(dir) {
-  try {
-    return String(run_git(["rev-parse", "HEAD"], {cwd: dir}).stdout || "").trim();
-  } catch (e) {
-    return "";
-  }
-}
-
-function git_clone_pinned(url, dest, rev) {
-  if (!url) throw new Error("missing git url");
-  fs.mkdirSync(path.dirname(dest), {recursive: true});
-  if (rev) {
-    fs.mkdirSync(dest, {recursive: true});
-    run_git(["init"], {cwd: dest});
-    run_git(["remote", "add", "origin", url], {cwd: dest});
-    run_git(["fetch", "--depth", "1", "origin", String(rev)], {cwd: dest});
-    run_git(["checkout", "--force", "FETCH_HEAD"], {cwd: dest});
-  } else {
-    run_git(["clone", "--depth", "1", url, dest]);
-  }
-  return git_rev_parse(dest);
-}
-
-function dep_version_of(root, name, spec) {
-  var dest = dep_root(root, name, spec);
-  var p = path.join(dest, "sure.json");
-  try {
-    if (fs.existsSync(p)) return String(read_manifest(p).version || "0.0.0");
-  } catch (e) {}
-  return (spec && spec.version) || "0.0.0";
-}
-
-function cmd_new(name, as_package) {
-  if (!name) {
-    console.error(as_package ? "sure new --package <author/pkg>" : "sure new <name>");
-    console.error("example: sure new myapp");
-    console.error("         sure new --package ada/boxes");
-    process.exit(1);
-  }
-  if (as_package && !mod_pkg_ok(name)) {
-    console.error("package names look like ada/boxes");
-    process.exit(1);
-  }
-  var folder = as_package ? name.split("/")[1] : name;
-  var root = path.resolve(ORIG_CWD, folder);
-  fs.mkdirSync(path.join(root, "src"), {recursive: true});
-  var exposed = as_package ? [pkg_mod_name(name)] : [];
-  var mainMod = as_package ? pkg_mod_name(name) : "Main";
-  write_manifest(path.join(root, "sure.json"), {
-    type: as_package ? "package" : "application",
-    name: name,
-    version: "1.0.0",
-    language: "Sure",
-    summary: as_package ? name : "",
-    "source-directories": ["src"],
-    "exposed-modules": exposed,
-    theorems: as_package ? [mainMod + ".inc_empty"] : ["Spec.add2"],
-    dependencies: {direct: {}, indirect: {}}
-  });
-  fs.writeFileSync(path.join(root, "sure.lock"), "{}\n");
-  if (as_package) {
-    fs.writeFileSync(path.join(root, "src", mainMod + ".sure"),
-      "module " + mainMod + " exposing (..)\n" +
-      "// Names inside the module are unqualified. Outside they are " + mainMod + ".empty.\n" +
-      "empty: Nat\n  0\n\n" +
-      "inc(n: Nat): Nat\n  Nat.succ(n)\n\n" +
-      "inc_empty: inc(empty) == 1\n  refl\n");
-  } else {
-    fs.writeFileSync(path.join(root, "src", "Main.sure"),
-      "module Main exposing (Main)\n" +
-      "// Program entry. `sure run` executes this.\n" +
-      "Main: IO<Unit>\n" +
-      "  IO {\n" +
-      "    IO.print(\"hello from " + name + "\")\n" +
-      "  }\n");
-    fs.writeFileSync(path.join(root, "src", "Spec.sure"),
-      "module Spec exposing (add2)\n" +
-      "// If this type-checks, Nat.add(2, 2) is 4. `sure prove` / `sure build` require it.\n" +
-      "add2: Nat.add(2, 2) == 4\n  refl\n");
-  }
-  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
-    name: as_package ? name.replace("/", "-") : name,
-    version: "1.0.0",
-    private: !as_package,
-    main: "dist/Main.js",
-  }, null, 2) + "\n");
-  fs.writeFileSync(path.join(root, "README.md"),
-    "# " + name + "\n\n" +
-    (as_package
-      ? "Sure library. A `.sure` file is a module of many functions. Dependents import exposed-modules only.\n\n```\nsure expose " + mainMod + "\nsure prove\n```\n"
-      : "Sure program. Write `.sure`, prove, emit JS.\n\n```\nsure prove\nsure build\nsure run\n```\n\n" +
-        "Packages: `sure help pkg`. JSON: `sure help json`.\n"));
-  console.log("created " + root);
-  console.log("next:");
-  console.log("  cd " + folder);
-  if (as_package) {
-    console.log("  sure expose " + mainMod);
-    console.log("  sure prove");
-  } else {
-    console.log("  sure prove");
-    console.log("  sure build");
-    console.log("  sure run");
-  }
-}
-
-function cmd_add(spec) {
-  var manFile = find_manifest(ORIG_CWD);
-  if (!manFile) { console.error("no sure.json or kind.json here"); process.exit(1); }
-  if (!spec) { console.error("sure add <path|git-url|author/pkg>"); process.exit(1); }
-  var man = read_manifest(manFile);
-  var root = path.dirname(manFile);
-  var slug;
-  var rec;
-  if (/^https?:\/\/|^git@/.test(spec) || mod_pkg_ok(spec)) {
-    var url = github_url_of(spec) || spec;
-    if (mod_pkg_ok(spec)) slug = spec;
-    else {
-      var cleaned = spec.replace(/\.git$/, "").replace(/\/+$/, "");
-      var segs = cleaned.split("/");
-      slug = segs.length >= 2 ? segs[segs.length - 2] + "/" + segs[segs.length - 1] : segs.pop();
-      if (!mod_pkg_ok(slug)) slug = segs[segs.length - 1] || "dep";
-    }
-    var dest = path.join(root, "sure_modules", slug);
-    fs.mkdirSync(path.dirname(dest), {recursive: true});
-    var rev = "";
-    if (!fs.existsSync(dest)) {
-      rev = git_clone_pinned(url, dest, null);
-    } else {
-      rev = git_rev_parse(dest);
-    }
-    rec = {git: url};
-  } else {
-    var abs = path.resolve(ORIG_CWD, spec);
-    if (!fs.existsSync(abs)) { console.error("not a path: " + spec); process.exit(1); }
-    var depMan = path.join(abs, "sure.json");
-    slug = path.basename(abs);
-    if (fs.existsSync(depMan)) {
-      try {
-        var dn = read_manifest(depMan).name;
-        if (dn) slug = dn;
-      } catch (e) {}
-    }
-    rec = {path: path.relative(root, abs) || "."};
-  }
-  man_set_direct(man, slug, rec);
-  write_manifest(manFile, man);
-  var lock = read_lock(root, manFile);
-  lock[slug] = {
-    version: dep_version_of(root, slug, rec),
-    source: spec,
-    git: rec.git || "",
-    rev: rec.git ? (git_rev_parse(dep_root(root, slug, rec)) || "") : "",
-    sha256: dep_tree_hash(dep_root(root, slug, rec)),
-    added: new Date().toISOString()
-  };
-  write_lock(root, manFile, lock);
-  console.log("added " + spec);
-}
-
-function cmd_remove(name) {
-  if (!name) { console.error("sure remove <name>"); process.exit(1); }
-  var manFile = find_manifest(ORIG_CWD);
-  if (!manFile) { console.error("no sure.json or kind.json here"); process.exit(1); }
-  var man = read_manifest(manFile);
-  var direct = man_direct(man);
-  if (!direct[name]) { console.error("not a dependency: " + name); process.exit(1); }
-  delete direct[name];
-  man.dependencies = {direct: direct, indirect: (man.dependencies && man.dependencies.indirect) || {}};
-  write_manifest(manFile, man);
-  var root = path.dirname(manFile);
-  var lock = read_lock(root, manFile);
-  Object.keys(lock).forEach(function(k) {
-    if (k === name || k.split("/").pop() === name) delete lock[k];
-  });
-  write_lock(root, manFile, lock);
-  try { fs.rmSync(path.join(root, "sure_modules", name), {recursive: true, force: true}); } catch (e) {}
-  try { fs.rmSync(path.join(root, "kind_modules", name), {recursive: true, force: true}); } catch (e) {}
-  console.log("removed " + name);
-}
-
-function cmd_install() {
-  var manFile = find_manifest(ORIG_CWD);
-  if (!manFile) { console.error("no sure.json or kind.json here"); process.exit(1); }
-  var root = path.dirname(manFile);
-  var man = read_manifest(manFile);
-  var direct = man_direct(man);
-  var lock = read_lock(root, manFile);
-  var names = Object.keys(direct);
-  Object.keys(lock).forEach(function(n) {
-    if (names.indexOf(n) < 0) names.push(n);
-  });
-  if (!names.length) {
-    console.log("up to date");
-    return;
-  }
-  var failed = 0;
-  names.forEach(function(n) {
-    var spec = direct[n] || {};
-    var pin = lock[n] || {};
-    if (spec.path) {
-      var abs = path.resolve(root, spec.path);
-      if (!fs.existsSync(abs)) {
-        console.error("missing path: " + n);
-        failed += 1;
-        return;
-      }
-      var pathHash = dep_tree_hash(abs);
-      if (pin.sha256 && pin.sha256 !== pathHash) {
-        console.error("install failed: " + n + " (sha256 mismatch)");
-        failed += 1;
-        return;
-      }
-      lock[n] = {
-        version: dep_version_of(root, n, spec),
-        source: spec.path,
-        rev: "",
-        sha256: pathHash,
-        added: pin.added || new Date().toISOString()
-      };
-      return;
-    }
-    var url = pin.git || spec.git || (pin.source && /^https?:\/\/|^git@/.test(pin.source) ? pin.source : "");
-    var rev = pin.rev || pin.commit || spec.rev || spec.tag || "";
-    if (!url) {
-      console.error("install failed: " + n + " (no git url in sure.lock / sure.json)");
-      failed += 1;
-      return;
-    }
-    var dest = path.join(root, "sure_modules", n);
-    if (fs.existsSync(dest) && rev) {
-      var have = git_rev_parse(dest);
-      var haveHash = dep_tree_hash(dest);
-      if (have && (have === rev || have.indexOf(rev) === 0 || rev.indexOf(have) === 0)
-          && (!pin.sha256 || pin.sha256 === haveHash)) {
-        lock[n] = {
-          version: dep_version_of(root, n, spec),
-          source: url,
-          git: url,
-          rev: have,
-          sha256: haveHash,
-          added: pin.added || new Date().toISOString()
-        };
-        return;
-      }
-      try { fs.rmSync(dest, {recursive: true, force: true}); } catch (eR) {}
-    } else if (fs.existsSync(dest) && !rev) {
-      var have2 = git_rev_parse(dest);
-      var haveHash2 = dep_tree_hash(dest);
-      if (pin.sha256 && pin.sha256 !== haveHash2) {
-        console.error("install failed: " + n + " (sha256 mismatch)");
-        failed += 1;
-        return;
-      }
-      lock[n] = {
-        version: dep_version_of(root, n, spec),
-        source: url,
-        git: url,
-        rev: have2,
-        sha256: haveHash2,
-        added: pin.added || new Date().toISOString()
-      };
-      return;
-    }
-    try {
-      var got = git_clone_pinned(url, dest, rev || null);
-      var gotHash = dep_tree_hash(dest);
-      if (pin.sha256 && pin.sha256 !== gotHash) {
-        console.error("install failed: " + n + " (sha256 mismatch)");
-        failed += 1;
-        return;
-      }
-      lock[n] = {
-        version: dep_version_of(root, n, spec),
-        source: url,
-        git: url,
-        rev: got,
-        sha256: gotHash,
-        added: pin.added || new Date().toISOString()
-      };
-    } catch (e) {
-      console.error("install failed: " + n + " " + String(e && e.message || e));
-      failed += 1;
-    }
-  });
-  write_lock(root, manFile, lock);
-  if (failed) process.exit(1);
-  console.log("installed " + names.length);
-}
-
-function cmd_expose(mod) {
-  if (!mod) { console.error("sure expose <Module>"); process.exit(1); }
-  if (!mod_name_ok(mod)) { console.error("module names look like Foo or Foo.Bar"); process.exit(1); }
-  var manFile = find_manifest(ORIG_CWD);
-  if (!manFile) { console.error("no sure.json or kind.json here"); process.exit(1); }
-  var man = read_manifest(manFile);
-  if (man_kind(man) !== "package") { console.error("only packages expose modules"); process.exit(1); }
-  var xs = man_exposed(man);
-  if (xs.indexOf(mod) < 0) xs.push(mod);
-  man["exposed-modules"] = xs;
-  write_manifest(manFile, man);
-  console.log("exposed " + mod);
-}
-
-async function capture_kind(fn) {
-  var chunks = [];
-  var write = process.stdout.write;
-  process.stdout.write = function(chunk, enc, cb) {
-    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
-    if (typeof enc === "function") return enc(null);
-    if (typeof cb === "function") return cb(null);
-    return true;
-  };
-  try {
-    await fn();
-  } finally {
-    process.stdout.write = write;
-  }
-  return chunks.join("");
-}
-
-function parse_json_loose(text) {
-  var t = String(text || "").trim();
-  if (!t) return null;
-  try { return JSON.parse(t); } catch (e) {}
-  var start = t.indexOf("{");
-  var end = t.lastIndexOf("}");
-  if (start >= 0 && end > start) {
-    try { return JSON.parse(t.slice(start, end + 1)); } catch (e2) {}
-  }
-  return null;
-}
 
 function json_ok(id, result) {
   return {jsonrpc: "2.0", id: id == null ? null : id, result: result};
@@ -2937,415 +2487,51 @@ function scan_symbols(prefix) {
   return out;
 }
 
-async function agent_check_name(name) {
-  var report;
-  if (checker("api.io.check_term_json")) {
-    var text = await capture_kind(function() {
-      return kind.run(checker("api.io.check_term_json")(name));
-    });
-    report = parse_json_loose(text) || {ok: false, raw: text};
-  } else {
-    var pretty = await capture_kind(function() {
-      return kind.run(checker("api.io.check_term")(name));
-    });
-    report = {ok: check_output_ok(pretty), pretty: pretty};
-  }
-  return gate_residual_holes(name, report, null);
-}
 
-async function agent_check_code(code) {
-  try { code = when_expand_source(String(code || "")); } catch (e) {}
-  var report;
-  if (checker("api.io.check_code_json")) {
-    var text = await kind.run(checker("api.io.check_code_json")(code));
-    report = typeof text === "string" ? (parse_json_loose(text) || {ok: false, raw: text}) : text;
-  } else {
-    var pretty = checker("api.check_code")
-      ? checker("api.check_code")(code)
-      : "";
-    report = {ok: check_output_ok(String(pretty)), pretty: String(pretty)};
-  }
-  var nm = "";
-  var lines = String(code || "").split("\n");
-  for (var i = 0; i < lines.length; i++) {
-    var h = def_header(lines[i]);
-    if (h && !/^\s/.test(lines[i])) { nm = h[1]; break; }
-  }
-  return gate_residual_holes(nm, report, code);
-}
-
-async function agent_show(name, normal) {
-  var fn = normal ? checker("api.io.show_term_normal") : checker("api.io.show_term");
-  if (!fn) return {ok: false, error: "show_term not in this compiler blob"};
-  var text = (await capture_kind(function() { return kind.run(fn(name)); })).trim();
-  return {ok: true, name: name, term: text};
-}
-
-function agent_type_names(text) {
-  var m = String(text || "").match(/[A-Z][A-Za-z0-9._]*/g);
-  if (!m) return [];
-  var seen = {};
-  var out = [];
-  for (var i = 0; i < m.length; i++) {
-    if (!seen[m[i]]) { seen[m[i]] = true; out.push(m[i]); }
-  }
-  return out;
-}
-
-async function agent_relevant(report) {
-  var names = [];
-  var types = (report && report.types) || [];
-  var diags = (report && report.diagnostics) || [];
-  for (var i = 0; i < types.length; i++) {
-    names = names.concat(agent_type_names(types[i].type));
-  }
-  for (var j = 0; j < diags.length; j++) {
-    var err = diags[j].error || diags[j];
-    names = names.concat(agent_type_names(err.goal || ""));
-    names = names.concat(agent_type_names(err.expected || ""));
-    names = names.concat(agent_type_names(err.context || ""));
-  }
-  var seen = {};
-  var uniq = [];
-  for (var k = 0; k < names.length; k++) {
-    if (!seen[names[k]]) { seen[names[k]] = true; uniq.push(names[k]); }
-  }
-  var relevant = [];
-  for (var n = 0; n < uniq.length && relevant.length < 8; n++) {
-    try {
-      var shown = await agent_show(uniq[n], false);
-      if (shown && shown.ok) relevant.push({name: uniq[n], term: shown.term});
-    } catch (e) {}
-  }
-  return relevant;
-}
-
-function filter_goals(report) {
-  var diags = (report && report.diagnostics) || [];
-  var goals = [];
-  for (var i = 0; i < diags.length; i++) {
-    var err = diags[i].error || diags[i];
-    if (err && (err.code === "show_goal" || err.code === "residual_hole" || err.name === "implement" || err.name === "_")) {
-      goals.push(diags[i]);
-    }
-  }
-  return goals;
-}
-
-function hole_count_js(src) {
-  var s = String(src || "");
-  if (!s) return 0;
-  var n = 0;
-  var i = 0;
-  var hole = "?implement";
-  while (true) {
-    var j = s.indexOf(hole, i);
-    if (j < 0) return n;
-    n += 1;
-    i = j + hole.length;
-  }
-}
-
-function fill_src(src, term, first) {
-  var s = src == null ? "" : String(src);
-  var t = term == null ? "" : String(term);
-  var hole = "?implement";
-  if (s.indexOf(hole) < 0) {
-    return {ok: false, error: "hole not found: " + hole, code: s, remaining: 0, first: !!first};
-  }
-  var next;
-  if (first) {
-    var i = s.indexOf(hole);
-    next = s.slice(0, i) + t + s.slice(i + hole.length);
-  } else {
-    next = s.split(hole).join(t);
-  }
-  return {ok: true, code: next, remaining: hole_count_js(next), first: !!first};
-}
-
-function extract_goal(diag) {
-  var err = (diag && (diag.error || diag)) || {};
-  var ty = err.goal != null ? err.goal : (err.expected != null ? err.expected : "");
-  var ctx = err.context != null ? err.context : "";
-  var name = err.name != null ? String(err.name) : (err.code === "show_goal" ? "implement" : "");
-  return {
-    name: name,
-    code: err.code || "",
-    type: ty == null ? "" : String(ty),
-    expected: err.expected != null ? String(err.expected) : "",
-    detected: err.detected != null ? String(err.detected) : "",
-    context: ctx == null ? "" : String(ctx),
-    origin: err.origin || null,
-    proof_obligation: !!err.proof_obligation,
-  };
-}
-
-function format_goal_line(g) {
-  g = g || {};
-  return "Goal ?" + (g.name || "") + ":\nWith type: " + (g.type || "") + "\nWith context:\n" + (g.context || "");
-}
-
-async function goal_trace(name, report) {
-  report = annotate_proof_report(report);
-  var proved = prove_result(name, report);
-  var raw = filter_goals(report);
-  var goals = [];
-  var traces = [];
-  for (var i = 0; i < raw.length; i++) {
-    var g = extract_goal(raw[i]);
-    goals.push(g);
-    traces.push(format_goal_line(g));
-  }
-  var relevant = await agent_relevant(report);
-  var remaining = goals.length;
-  var ok = !!(proved && proved.ok) && remaining === 0 && !(proved.proof_obligations && proved.proof_obligations.length);
-  return {
-    ok: ok,
-    name: proved.name || name || "",
-    type: proved.type || "",
-    proved: !!proved.proved,
-    remaining: remaining,
-    goals: goals,
-    traces: traces,
-    relevant: relevant,
-    proof_obligations: proved.proof_obligations || [],
-    diagnostics: proved.diagnostics || [],
-  };
-}
-
-async function agent_dispatch(method, params) {
-  params = params || {};
-  method = String(method || "");
-  if (method.indexOf("kind.") === 0) method = "sure." + method.slice(5);
-  switch (method) {
-    case "sure.parse":
-    case "sure.check": {
-      var checked = params.code != null
-        ? await agent_check_code(String(params.code))
-        : (params.name ? await agent_check_name(String(params.name)) : {ok: false, error: "need name or code"});
-      return annotate_proof_report(checked);
-    }
-    case "sure.prove": {
-      var checked = params.code != null
-        ? await agent_check_code(String(params.code))
-        : (params.name ? await agent_check_name(String(params.name)) : {ok: false, error: "need name or code"});
-      return prove_result(params.name || "", checked);
-    }
-    case "sure.normalize":
-      if (!params.name) return {ok: false, error: "need name"};
-      return await agent_show(String(params.name), true);
-    case "sure.infer":
-    case "sure.definition":
-      if (params.code != null) return await agent_check_code(String(params.code));
-      if (!params.name) return {ok: false, error: "need name"};
-      return await agent_check_name(String(params.name));
-    case "sure.goal":
-    case "sure.trace":
-    case "sure.holes":
-    case "sure.diagnostics": {
-      if (method === "sure.holes" && params.code == null && !params.name && !params.file) {
-        return scan_project_holes();
-      }
-      if ((method === "sure.goal" || method === "sure.trace") && params.code == null && !params.name && !params.file) {
-        return {ok: false, error: "need name or code", remaining: 0, goals: [], traces: [], relevant: []};
-      }
-      var report = params.code != null
-        ? await agent_check_code(String(params.code))
-        : await agent_check_name(String(params.name || params.file || ""));
-      if (method === "sure.diagnostics") return report;
-      if (method === "sure.holes") {
-        var goals = filter_goals(report);
-        report = annotate_proof_report(report);
-        return {ok: !!(report && report.ok), goals: goals, relevant: [], report: report};
-      }
-      var traced = await goal_trace(params.name || "", report);
-      return traced;
-    }
-    case "sure.repair":
-    case "sure.fill": {
-      var src = params.code != null ? String(params.code)
-        : (params.file && fs.existsSync(params.file) ? fs.readFileSync(params.file, "utf8") : "");
-      if (!src) return {ok: false, error: "need code or file", remaining: 0};
-      var term = params.term != null ? String(params.term) : "";
-      if (method === "sure.repair" && !term) return {ok: false, error: "need term", remaining: hole_count_js(src)};
-      var first = method === "sure.fill" ? !!params.first : false;
-      var filled = fill_src(src, term, first);
-      if (!filled.ok) return filled;
-      if (params.file) fs.writeFileSync(params.file, filled.code);
-      var checked = await agent_check_code(filled.code);
-      var traced = await goal_trace("", checked);
-      return {
-        ok: !!(checked && checked.ok) && traced.remaining === 0,
-        code: filled.code,
-        remaining: traced.remaining,
-        first: first,
-        report: checked,
-        trace: traced,
-      };
-    }
-    case "sure.symbols":
-      return {ok: true, symbols: scan_symbols(params.prefix || "")};
-    case "sure.references":
-      if (!params.name) return {ok: false, error: "need name"};
-      return {ok: true, references: scan_references(String(params.name))};
-    case "sure.impact":
-      return scan_impact(params.name ? String(params.name) : "");
-    case "sure.theorems":
-      return scan_theorems(params.name ? String(params.name) : "");
-    case "sure.docs":
-      return scan_docs(params.name ? String(params.name) : "");
-    case "sure.graph":
-      return scan_graph(params.name ? String(params.name) : "", params.depth);
-    case "sure.bench": {
-      if (!params.name) return {ok: false, error: "need name"};
-      var n = params.n == null ? 1 : Number(params.n);
-      var samples = [];
-      for (var bi = 0; bi < n && Number.isFinite(n) && n >= 1; bi++) {
-        var t0 = Date.now();
-        var report = await agent_check_name(String(params.name));
-        var dt = Date.now() - t0;
-        var pr = prove_result(params.name, report);
-        if (!pr.ok) return {ok: false, error: "unproved", name: params.name, ms: dt, report: pr};
-        samples.push(dt);
-      }
-      var st = bench_stats(samples);
-      st.name = params.name;
-      return st;
-    }
-    case "sure.qc": {
-      var qn = params.n == null ? 8 : Number(params.n);
-      return await cmd_qc(params.name || "", qn, !!params.debug);
-    }
-    case "sure.gen":
-      return await cmd_gen(params.name ? String(params.name) : "");
-    case "sure.dependencies":
-      return scan_dependencies(params.name ? String(params.name) : "");
-    case "sure.patch":
-    case "sure.edit":
-      if (params.file && params.text != null) {
-        fs.writeFileSync(params.file, params.text);
-        return {ok: true, file: params.file};
-      }
-      return {ok: false, error: "need file and text"};
-    case "sure.compile":
-      if (!params.name) return {ok: false, error: "need name"};
-      var target = params.target || "fmc";
-      if (target === "fmc" && checker("api.io.term_to_core")) {
-        var fmc = await kind.run(checker("api.io.term_to_core")(params.name));
-        try { fmc = fmc_to_js.shake_code(fmc, params.name); } catch (e) {}
-        return {ok: true, target: "fmc", code: fmc};
-      }
-      return {ok: false, error: "unsupported target"};
-    case "sure.debug": {
-      if (params.code == null && !params.name) {
-        return {ok: false, error: "need name or code", remaining: 0, traces: [], relevant: []};
-      }
-      var dbg_report = params.code != null
-        ? await agent_check_code(String(params.code))
-        : await agent_check_name(String(params.name || ""));
-      var dbg_traced = await goal_trace(params.name || "", dbg_report);
-      var dbg_lv = sure_debug_level_read(params.level || "trace") || "trace";
-      var dbg_opt = params.opt == null ? "" : String(params.opt);
-      var dbg_flags = sure_debug_flags_read(dbg_opt);
-      var dbg_term = "";
-      if (params.name) {
-        try {
-          var dbg_shown = await agent_show(String(params.name), !!params.norm);
-          if (dbg_shown && dbg_shown.ok) dbg_term = dbg_shown.term || "";
-        } catch (e) { dbg_term = ""; }
-      }
-      return {
-        ok: !!dbg_traced.ok,
-        level: dbg_lv,
-        flags: sure_debug_flags_show(dbg_flags),
-        name: dbg_traced.name || params.name || "",
-        type: dbg_traced.type || "",
-        term: dbg_term,
-        remaining: dbg_traced.remaining,
-        traces: dbg_traced.traces || [],
-        relevant: dbg_traced.relevant || [],
-        proof_obligations: dbg_traced.proof_obligations || [],
-        diagnostics: dbg_traced.diagnostics || [],
-      };
-    }
-    default:
-      return {ok: false, error: "unknown method: " + method};
-  }
-}
-
-async function cmd_agent_stdio() {
-  var buf = "";
-  process.stdin.setEncoding("utf8");
-  process.stdin.on("data", function(chunk) { buf += chunk; maybe(); });
-  process.stdin.on("end", function() { maybe(true); });
-  async function maybe(force) {
-    while (true) {
-      var nl = buf.indexOf("\n");
-      if (nl < 0) {
-        if (force && buf.trim()) {
-          var line = buf; buf = "";
-          await handle_line(line);
-        }
-        return;
-      }
-      var line = buf.slice(0, nl);
-      buf = buf.slice(nl + 1);
-      if (line.trim()) await handle_line(line);
-    }
-  }
-  async function handle_line(line) {
-    var req;
-    try { req = JSON.parse(line); } catch (e) {
-      process.stdout.write(JSON.stringify(json_err(null, -32700, "parse error")) + "\n");
-      return;
-    }
-    if (req.method && req.method.indexOf("kind.") === 0) {
-      req.method = "sure." + req.method.slice(5);
-    }
-    if (req.method && req.method.indexOf("sure.") !== 0 && req.method !== "initialize") {
-      if (req.method !== "shutdown" && req.method !== "exit") {
-        req.method = "sure." + req.method.replace(/^sure\./, "");
-      }
-    }
-    try {
-      if (req.method === "shutdown" || req.method === "exit") {
-        process.stdout.write(JSON.stringify(json_ok(req.id, {ok: true})) + "\n");
-        if (req.method === "exit") process.exit(0);
-        return;
-      }
-      var result = await agent_dispatch(req.method, req.params || {});
-      process.stdout.write(JSON.stringify(json_ok(req.id, result)) + "\n");
-    } catch (e) {
-      process.stdout.write(JSON.stringify(json_err(req.id, -32603, String(e && e.message || e))) + "\n");
-    }
-  }
-}
-
-async function cmd_agent_client(method, arg) {
-  if (!method) {
-    console.error("sure agent --client <method> [name|code]");
-    process.exit(1);
-  }
-  if (method.indexOf("kind.") === 0) method = "sure." + method.slice(5);
-  if (method.indexOf("sure.") !== 0) method = "sure." + method;
-  var params = {};
-  if (arg && arg.indexOf("\n") >= 0) params.code = arg;
-  else if (arg && /\s/.test(arg) && /:/.test(arg)) params.code = arg;
-  else if (arg) params.name = arg;
-  if (method === "sure.symbols") params.prefix = arg || "";
-  if (method === "sure.repair" || method === "sure.fill") {
-    var split = arg.indexOf("|||");
-    if (split >= 0) {
-      params.code = arg.slice(0, split);
-      params.term = arg.slice(split + 3);
-    } else {
-      params.term = arg;
-    }
-  }
-  var result = await agent_dispatch(method, params);
-  console.log(JSON.stringify(result, null, 2));
-  if (result && result.ok === false) process.exit(1);
-}
+var agent = require("./agent")({
+  fs: fs,
+  kind: kind,
+  checker: checker,
+  fmc_to_js: fmc_to_js,
+  json_ok: json_ok,
+  json_err: json_err,
+  gate_residual_holes: function(a, b, c) { return gate_residual_holes(a, b, c); },
+  when_expand_source: function(s) { return when_expand_source(s); },
+  def_header: function(s) { return def_header(s); },
+  check_output_ok: function(s) { return check_output_ok(s); },
+  annotate_proof_report: function(r) { return annotate_proof_report(r); },
+  prove_result: function(n, r) { return prove_result(n, r); },
+  scan_project_holes: function() { return scan_project_holes(); },
+  scan_symbols: function(p) { return scan_symbols(p); },
+  scan_references: function(n) { return scan_references(n); },
+  scan_impact: function(n) { return scan_impact(n); },
+  scan_theorems: function(n) { return scan_theorems(n); },
+  scan_docs: function(n) { return scan_docs(n); },
+  scan_graph: function(n, d) { return scan_graph(n, d); },
+  scan_dependencies: function(n) { return scan_dependencies(n); },
+  cmd_qc: function(a, b, c) { return cmd_qc(a, b, c); },
+  cmd_gen: function(n) { return cmd_gen(n); },
+  bench_stats: function(s) { return bench_stats(s); },
+  sure_debug_level_read: function(s) { return sure_debug_level_read(s); },
+  sure_debug_flags_read: function(s) { return sure_debug_flags_read(s); },
+  sure_debug_flags_show: function(f) { return sure_debug_flags_show(f); }
+});
+var capture_kind = agent.capture_kind;
+var parse_json_loose = agent.parse_json_loose;
+var agent_check_name = agent.agent_check_name;
+var agent_check_code = agent.agent_check_code;
+var agent_show = agent.agent_show;
+var agent_type_names = agent.agent_type_names;
+var agent_relevant = agent.agent_relevant;
+var filter_goals = agent.filter_goals;
+var hole_count_js = agent.hole_count_js;
+var fill_src = agent.fill_src;
+var extract_goal = agent.extract_goal;
+var format_goal_line = agent.format_goal_line;
+var goal_trace = agent.goal_trace;
+var agent_dispatch = agent.agent_dispatch;
+var cmd_agent_stdio = agent.cmd_agent_stdio;
+var cmd_agent_client = agent.cmd_agent_client;
 
 var lsp = require("./lsp")({
   compiler: compiler,
@@ -4202,6 +3388,22 @@ async function run_prove_edges() {
   } catch (e) {
     console.log("fail Html.Counter.client " + e); failed += 1;
   }
+  try {
+    console.log("compile js Html.Echo.client  [" + new Date().toISOString() + "]");
+    var t1 = Date.now();
+    var js_e = await compile_term_js("Html.Echo.client");
+    var dt_e = Date.now() - t1;
+    console.log("emit Html.Echo.client " + dt_e + "ms");
+    if (!js_e || js_e.indexOf("module.exports") < 0) {
+      console.log("fail compile Html.Echo.client"); failed += 1;
+    } else if (js_e.indexOf("Html$Event$read$") >= 0 || js_e.indexOf("Html$Tag$read$") >= 0 || js_e.indexOf("Html$Tag$show$") >= 0 || js_e.indexOf("Html$Event$show$") >= 0) {
+      console.log("fail Echo pulls tag/event tables"); failed += 1;
+    } else if (dt_e > 15000) {
+      console.log("fail Echo emit too slow " + dt_e + "ms"); failed += 1;
+    } else console.log("ok   compile Html.Echo.client");
+  } catch (e) {
+    console.log("fail Html.Echo.client " + e); failed += 1;
+  }
   if (sure_emit_html_file("") !== "" || sure_emit_html_file("Main") !== "dist/Main.html") {
     console.log("fail emit html file"); failed += 1;
   } else console.log("ok   emit html file");
@@ -4347,6 +3549,27 @@ async function run_prove_edges() {
   var ch2 = lsp_apply_changes("ab", [{range: {start: {line: 0, character: 1}, end: {line: 0, character: 2}}, text: "X"}]);
   if (ch0 !== "ab" || ch1 !== "cd" || ch2 !== "aX") { console.log("fail lsp apply " + ch0 + ch1 + ch2); failed += 1; }
   else console.log("ok   lsp apply");
+  var hsrc = "inc: Nat -> Nat\n  (n) Nat.succ(n)\n";
+  var stTerm = lsp_new_state();
+  stTerm.init = true;
+  stTerm.docs["file:///tmp/inc.sure"] = hsrc;
+  var lsp_hov_t = await lsp_handle(stTerm, {jsonrpc: "2.0", id: 30, method: "textDocument/hover", params: {textDocument: {uri: "file:///tmp/inc.sure"}, position: {line: 0, character: 1}}});
+  var hv = (lsp_hov_t.out || []).filter(function(m) { return m.id === 30; })[0];
+  var hv_txt = hv && hv.result && hv.result.contents ? String(hv.result.contents.value || "") : "";
+  if (!hv || hv_txt.indexOf("inc") < 0 || hv_txt.indexOf("Nat") < 0) {
+    console.log("fail lsp hover term " + hv_txt); failed += 1;
+  } else console.log("ok   lsp hover term");
+  var lsp_sym_t = await lsp_handle(stTerm, {jsonrpc: "2.0", id: 31, method: "textDocument/documentSymbol", params: {textDocument: {uri: "file:///tmp/inc.sure"}}});
+  var syms = lsp_sym_t.out && lsp_sym_t.out[0] && lsp_sym_t.out[0].result;
+  if (!Array.isArray(syms) || !syms.some(function(s) { return s && String(s.name).indexOf("inc") >= 0; })) {
+    console.log("fail lsp symbols term " + JSON.stringify(syms)); failed += 1;
+  } else console.log("ok   lsp symbols term");
+  var lsp_ren_t = await lsp_handle(stTerm, {jsonrpc: "2.0", id: 32, method: "textDocument/rename", params: {textDocument: {uri: "file:///tmp/inc.sure"}, position: {line: 0, character: 1}, newName: "dec"}});
+  var ren = lsp_ren_t.out && lsp_ren_t.out[0] && lsp_ren_t.out[0].result;
+  var ren_txt = ren && ren.documentChanges && ren.documentChanges[0] && ren.documentChanges[0].edits && ren.documentChanges[0].edits[0] ? String(ren.documentChanges[0].edits[0].newText || "") : "";
+  if (!ren_txt || ren_txt.indexOf("dec:") < 0) {
+    console.log("fail lsp rename term " + ren_txt); failed += 1;
+  } else console.log("ok   lsp rename term");
   var ext_dir = path.join(__dirname, "../../../editors/vscode");
   try {
     var ext_pkg = JSON.parse(fs.readFileSync(path.join(ext_dir, "package.json"), "utf8"));
@@ -5469,9 +4692,13 @@ function spawn_term_run(term) {
       console.log(e);
       failed += 1;
     }
-    test_log("== host runtime Test.host (Proc.exec argv + IO.bracket race) ==");
+    test_log("== Test.main (Test.ci.suite + Test.host) ==");
     try {
-      var host_out = await run_term_capture("Test.host");
+      var host_out = await run_term_capture("Test.main");
+      if (host_out.indexOf("ok   nat empty") < 0) {
+        console.log("fail Test.main missing CI unit");
+        failed += 1;
+      } else console.log("ok   Test.main CI unit");
       if (host_out.indexOf("RELEASED") < 0) {
         console.log("fail Test.host missing RELEASED");
         failed += 1;
@@ -5498,13 +4725,6 @@ function spawn_term_run(term) {
         console.log("fail Test.host http race");
         failed += 1;
       } else console.log("ok   Test.host http race");
-    } catch (e) {
-      console.log(e);
-      failed += 1;
-    }
-    test_log("== Test.ci (behavioral slice) ==");
-    try {
-      await run_term_inprocess("Test.ci");
     } catch (e) {
       console.log(e);
       failed += 1;

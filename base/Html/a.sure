@@ -1,2 +1,2 @@
 Html.a(href: String, kids: List<DOM>): DOM
-  Html.el(Html.Tag.a, Html.attr("href", href, Map.new<String>), Map.new<String>, kids)
+  Html.el("a", Html.attr("href", href, Map.new<String>), Map.new<String>, kids)

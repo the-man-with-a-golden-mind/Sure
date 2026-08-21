@@ -1,11 +1,11 @@
 Sure.Tweeter.box(cls: String, props: Map<String>, kids: List<DOM>): DOM
-  Html.el(Html.Tag.div, Html.attr("class", cls, props), Map.from_list<String>([]), kids)
+  Html.el("div", Html.attr("class", cls, props), Map.from_list<String>([]), kids)
 
 Sure.Tweeter.field(typ: String, ph: String, val: String, msg: String): DOM
   Html.el(
-    Html.Tag.input,
+    "input",
     Html.on(
-      Html.Event.change,
+      "change",
       msg,
       Html.attr(
         "type",
@@ -51,8 +51,8 @@ Sure.Tweeter.login_view(m: Sure.Tweeter.Model): DOM
                   "card-actions justify-end mt-2",
                   Map.from_list<String>([]),
                   [
-                    Html.el(Html.Tag.button, Html.on(Html.Event.click, "register", Html.attr("class", "btn btn-ghost", Map.new<String>)), Map.new<String>, [Html.text("Register")]),
-                    Html.el(Html.Tag.button, Html.on(Html.Event.click, "login", Html.attr("class", "btn btn-primary", Map.new<String>)), Map.new<String>, [Html.text("Login")])
+                    Html.el("button", Html.on("click", "register", Html.attr("class", "btn btn-ghost", Map.new<String>)), Map.new<String>, [Html.text("Register")]),
+                    Html.el("button", Html.on("click", "login", Html.attr("class", "btn btn-primary", Map.new<String>)), Map.new<String>, [Html.text("Login")])
                   ]
                 )
               ],
@@ -66,9 +66,9 @@ Sure.Tweeter.login_view(m: Sure.Tweeter.Model): DOM
 
 Sure.Tweeter.file_input(u: Unit): DOM
   Html.el(
-    Html.Tag.input,
+    "input",
     Html.on(
-      Html.Event.change,
+      "change",
       "file",
       Html.attr(
         "type",
@@ -86,12 +86,12 @@ Sure.Tweeter.file_input(u: Unit): DOM
 
 Sure.Tweeter.preview(blob: String): List<DOM>
   if String.is_empty(blob) then []
-  else [Html.el(Html.Tag.img, Html.attr("src", blob, Html.attr("class", "max-h-40 rounded-box mt-2", Map.new<String>)), Map.new<String>, [])]
+  else [Html.el("img", Html.attr("src", blob, Html.attr("class", "max-h-40 rounded-box mt-2", Map.new<String>)), Map.new<String>, [])]
 
 Sure.Tweeter.tweet_card(t: Sure.Tweeter.Tweet): DOM
   open t
   let img = if String.is_empty(t.file) then []
-    else [Html.el(Html.Tag.img, Html.attr("src", "/tweeter/file?id=" | t.file, Html.attr("class", "max-h-48 rounded-box mt-2", Map.new<String>)), Map.new<String>, [])]
+    else [Html.el("img", Html.attr("src", "/tweeter/file?id=" | t.file, Html.attr("class", "max-h-48 rounded-box mt-2", Map.new<String>)), Map.new<String>, [])]
   Sure.Tweeter.box(
     "card bg-base-100 shadow mb-3",
     Map.from_list<String>([]),
@@ -128,9 +128,9 @@ Sure.Tweeter.compose(m: Sure.Tweeter.Model): DOM
         List.concat<DOM>(
           [
             Html.el(
-              Html.Tag.textarea,
+              "textarea",
               Html.on(
-                Html.Event.input,
+                "input",
                 "draft",
                 Html.attr("class", "textarea textarea-bordered w-full", Html.attr("placeholder", "What's happening?", Map.new<String>))
               ),
@@ -141,7 +141,7 @@ Sure.Tweeter.compose(m: Sure.Tweeter.Model): DOM
             Sure.Tweeter.box(
               "card-actions justify-end",
               Map.from_list<String>([]),
-              [Html.el(Html.Tag.button, Html.on(Html.Event.click, "tweet", Html.attr("class", "btn btn-primary", Map.new<String>)), Map.new<String>, [Html.text("Tweet")])]
+              [Html.el("button", Html.on("click", "tweet", Html.attr("class", "btn btn-primary", Map.new<String>)), Map.new<String>, [Html.text("Tweet")])]
             )
           ],
           List.concat<DOM>(Sure.Tweeter.preview(m.blob), Sure.Tweeter.note_view(m.note))
@@ -170,7 +170,7 @@ Sure.Tweeter.home_view(m: Sure.Tweeter.Model): DOM
             Map.from_list<String>([]),
             [
               Sure.Tweeter.box("badge badge-ghost", Map.from_list<String>([]), [Html.text("@" | who)]),
-              Html.el(Html.Tag.button, Html.on(Html.Event.click, "logout", Html.attr("class", "btn btn-ghost btn-sm", Map.new<String>)), Map.new<String>, [Html.text("Logout")])
+              Html.el("button", Html.on("click", "logout", Html.attr("class", "btn btn-ghost btn-sm", Map.new<String>)), Map.new<String>, [Html.text("Logout")])
             ]
           )
         ]

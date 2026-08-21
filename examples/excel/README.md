@@ -1,6 +1,6 @@
 # sure/excel
 
-Spreadsheet on `127.0.0.1:8765`. 10000 rows in the scroller, ~30 DOM rows in the window. Drag a column edge to resize; widths write to `excel-cols.txt`.
+Spreadsheet on `127.0.0.1:8765`. 10000 rows in the scroller, ~30 DOM rows in the window. Edit a cell and leave it (change/blur) to keep the value. Drag a column edge to resize; widths write to `excel-cols.txt`.
 
 ```bash
 sure prove

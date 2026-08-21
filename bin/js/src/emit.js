@@ -109,7 +109,16 @@ function sure_dom_mount_src() {
 }
 
 function sure_html_css() {
-  return "html,body{margin:0}#sure-root{min-height:100vh}";
+  return "html,body{margin:0}#sure-root{min-height:100vh}"
+    + ".overflow-auto{overflow:auto}.overflow-hidden{overflow:hidden}"
+    + ".flex{display:flex}.absolute{position:absolute}.relative{position:relative}"
+    + ".sticky{position:sticky}.fixed{position:fixed}"
+    + ".left-0{left:0}.top-0{top:0}.right-0{right:0}.inset-0{inset:0}.inset-y-0{top:0;bottom:0}"
+    + ".h-6{height:1.5rem}.h-\\[480px\\]{height:480px}.w-12{width:3rem}.w-1\\.5{width:.375rem}"
+    + ".shrink-0{flex-shrink:0}.box-border{box-sizing:border-box}"
+    + ".truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+    + ".z-10{z-index:10}.z-50{z-index:50}.select-none{user-select:none}.cursor-col-resize{cursor:col-resize}"
+    + ".min-h-screen{min-height:100vh}";
 }
 
 function sure_html_cdn() {

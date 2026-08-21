@@ -617,7 +617,7 @@ async function run_prove_edges() {
     console.log("fail emit path traversal"); failed += 1;
   } else console.log("ok   emit path traversal");
   var page = sure_html_wrap("Main", "module.exports={};");
-  if (!page || page.indexOf("sure-root") < 0 || page.indexOf("SureDom.mount") < 0 || page.indexOf("\"click\"") < 0 || page.indexOf("\"wheel\"") < 0 || page.indexOf("<style>") < 0 || page.indexOf("cdn.tailwindcss.com") < 0 || page.indexOf("daisyui@4.12.23") < 0) {
+  if (!page || page.indexOf("sure-root") < 0 || page.indexOf("SureDom.mount") < 0 || page.indexOf("\"click\"") < 0 || page.indexOf("\"wheel\"") < 0 || page.indexOf("<style>") < 0 || page.indexOf("overflow:auto") < 0 || page.indexOf("cdn.tailwindcss.com") < 0 || page.indexOf("daisyui@4.12.23") < 0) {
     console.log("fail html wrap events"); failed += 1;
   } else console.log("ok   html wrap events");
   if (SURE_DOM_EVENTS.length !== 122) {

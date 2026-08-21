@@ -12,7 +12,9 @@
     "Excel.is_page_root",
     "Excel.is_page_empty",
     "Excel.is_page_junk",
-    "Excel.first_zero"
+    "Excel.edit_default",
+    "Excel.edit_set",
+    "Excel.edit_empty"
   ],
   "dependencies": {
     "direct": {},

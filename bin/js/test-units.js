@@ -105,6 +105,8 @@ check("mount patch", mount.indexOf("surePatch") >= 0 && mount.indexOf("sureSched
 check("mount no error", mount.indexOf('"error"') < 0 && mount.indexOf("visibilitychange") < 0);
 check("mount skip snapshot", mount.indexOf("lastScrollRow") < 0 && mount.indexOf("lastDrawnRow") >= 0 && mount.indexOf("{ r: raw, s: skip }") >= 0);
 check("mount sure-y", mount.indexOf("data-sure-y") >= 0);
+check("mount paste", mount.indexOf("paste") >= 0 && mount.indexOf("clipboardData") >= 0);
+check("px skip", px_style.surePxHtml("<div></div>") === "<div></div>");
 check("wrap no cdn", emit.sure_html_wrap("Main", "module.exports={};").indexOf("cdn.tailwindcss.com") < 0);
 var patchSkip = dom_patch.surePatch({innerHTML: "", __sureHtml: "<p>x</p>"}, "<p>x</p>", {createElement: function(){ return {}; }});
 check("patch skip unchanged", patchSkip.skipped === true);

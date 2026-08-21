@@ -614,9 +614,9 @@ async function run_prove_edges() {
   if (mount.indexOf("parentElement") < 0 || mount.indexOf("catch") < 0 || mount.indexOf("Sure.Ui.Client.new") < 0 || mount.indexOf("EventSource") < 0 || mount.indexOf("__sureMounted") < 0 || mount.indexOf("data-sure-scroll") < 0 || mount.indexOf("scrollTop") < 0 || mount.indexOf("FileReader") < 0 || mount.indexOf("POST") < 0 || mount.indexOf("same-origin") < 0 || mount.indexOf("applyPx") < 0 || mount.indexOf("minWidth") < 0 || mount.indexOf("surePatch") < 0 || mount.indexOf("sureScheduleMake") < 0 || mount.indexOf("passive") < 0) {
     console.log("fail mount harden"); failed += 1;
   } else console.log("ok   mount harden");
-  if (SURE_DOM_CORE_EVENTS.length !== 19 || SURE_DOM_CORE_EVENTS.indexOf("error") >= 0 || SURE_DOM_CORE_EVENTS.indexOf("scroll") < 0) {
+  if (SURE_DOM_CORE_EVENTS.length !== 20 || SURE_DOM_CORE_EVENTS.indexOf("error") >= 0 || SURE_DOM_CORE_EVENTS.indexOf("scroll") < 0 || SURE_DOM_CORE_EVENTS.indexOf("paste") < 0) {
     console.log("fail core events " + SURE_DOM_CORE_EVENTS.length); failed += 1;
-  } else console.log("ok   core events 19");
+  } else console.log("ok   core events 20");
   if (mount.indexOf('"error"') >= 0 || mount.indexOf("'error'") >= 0 || mount.indexOf("visibilitychange") >= 0) {
     console.log("fail mount binds error"); failed += 1;
   } else console.log("ok   mount skips error");

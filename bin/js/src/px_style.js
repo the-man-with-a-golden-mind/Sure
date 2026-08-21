@@ -44,6 +44,7 @@ function mergeStyle(existing, decls) {
 
 function surePxHtml(html) {
   html = String(html == null ? "" : html);
+  if (html.indexOf("px]") < 0) return html;
   return html.replace(/<([a-zA-Z0-9]+)([^>]*?)(\/?)>/g, function(all, tag, attrs, slash) {
     var cm = /\bclass\s*=\s*"([^"]*)"/.exec(attrs);
     if (!cm) return all;

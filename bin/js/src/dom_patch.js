@@ -91,7 +91,10 @@ function copyAttrs(from, to) {
   if (from.className != null && to.className !== from.className) to.className = from.className;
   var tag = (from.tagName || "").toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select") {
-    if (from.value != null && to.value !== from.value && documentActive(to) === false) to.value = from.value;
+    if (from.value != null && to.value !== from.value) {
+      var typed = documentActive(to) !== false && String(to.value) !== String(to.getAttribute("value") || "");
+      if (!typed) to.value = from.value;
+    }
     if (!!from.checked !== !!to.checked) to.checked = !!from.checked;
   }
 }

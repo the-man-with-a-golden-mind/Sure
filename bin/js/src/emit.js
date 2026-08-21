@@ -43,7 +43,7 @@ var SURE_DOM_EVENTS = [
 var SURE_DOM_CORE_EVENTS = [
   "click","input","change","scroll","mousedown","mousemove","mouseup",
   "keydown","keyup","submit","wheel","pointerdown","pointermove","pointerup",
-  "focus","blur","touchstart","touchmove","touchend"
+  "focus","blur","touchstart","touchmove","touchend","paste"
 ];
 
 function applyPx(n) {
@@ -86,7 +86,7 @@ function sure_dom_mount(app) {
   if (!root) return;
   if (root.__sureMounted) return;
   root.__sureMounted = 1;
-  var ev = ["click","input","change","scroll","mousedown","mousemove","mouseup","keydown","keyup","submit","wheel","pointerdown","pointermove","pointerup","focus","blur","touchstart","touchmove","touchend"];
+  var ev = SURE_DOM_CORE_EVENTS;
   var hot = { scroll: 1, mousemove: 1, pointermove: 1, touchmove: 1, wheel: 1 };
   var pass = { scroll: 1, wheel: 1, touchstart: 1, touchmove: 1, touchend: 1 };
   var drawing = false;
@@ -107,11 +107,24 @@ function sure_dom_mount(app) {
       try { ft.select(); } catch (_s) {}
     }
   }
+  function clipText(e) {
+    try {
+      if (e && e.clipboardData && typeof e.clipboardData.getData === "function") {
+        return String(e.clipboardData.getData("text") || e.clipboardData.getData("text/plain") || "")
+          .replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      }
+    } catch (_c) {}
+    return "";
+  }
   function wireOf(e, msg, t) {
-    if (e.type === "submit" || e.type === "mousedown") try { e.preventDefault(); } catch (_p) {}
+    if (e.type === "submit" || e.type === "mousedown" || e.type === "paste") try { e.preventDefault(); } catch (_p) {}
     var val = t.value == null ? "" : String(t.value);
     if (e.type === "scroll") {
       try { val = String((t.scrollTop | 0) || 0); } catch (_s) { val = "0"; }
+    }
+    if (e.type === "paste") {
+      var clip = clipText(e);
+      if (clip) val = clip;
     }
     return [e.type, msg, t.id || "", val, e.key || "", e.button || 0, (e.clientX | 0) || 0, (e.clientY | 0) || 0, e.altKey ? 1 : 0, e.ctrlKey ? 1 : 0, e.metaKey ? 1 : 0, e.shiftKey ? 1 : 0, t.checked ? 1 : 0].join("\n");
   }
@@ -157,6 +170,12 @@ function sure_dom_mount(app) {
   }
   function prepEv(e) {
     selectOnFocus(e);
+    if (e.type === "paste" && e.target && e.target.tagName === "INPUT") {
+      var one = clipText(e);
+      if (one.indexOf("\n") < 0 && one.indexOf("\t") < 0) return null;
+      try { e.target.blur(); } catch (_pb) {}
+    }
+    if (e.type === "keydown" && e.target && e.target.tagName === "INPUT" && (e.key === "Backspace" || e.key === "Delete")) return null;
     var t = targetOf(e);
     if (!t) return null;
     var msg = t.getAttribute("data-sure-on-" + e.type);
@@ -171,7 +190,7 @@ function sure_dom_mount(app) {
   }
   function drawHtml(html) {
     html = surePxHtml(String(html == null ? "" : html));
-    surePatch(root, html, document, applyPx);
+    surePatch(root, html, document, null);
     try {
       var af = root.querySelector ? root.querySelector("[data-sure-autofocus]") : null;
       if (af && af.focus && document.activeElement !== af) af.focus();
@@ -351,6 +370,7 @@ function sure_dom_mount(app) {
 
 function sure_dom_mount_src() {
   return scheduler.embed() + ";\n" + px_style.embed() + ";\n" + dom_patch.embed() + ";\n"
+    + "var SURE_DOM_CORE_EVENTS=" + JSON.stringify(SURE_DOM_CORE_EVENTS) + ";\n"
     + applyPx.toString() + ";var SureDom={mount:" + sure_dom_mount.toString() + "};";
 }
 

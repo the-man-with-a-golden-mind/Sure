@@ -198,9 +198,6 @@ box_st(cls: String, props: Map<String>, style: Map<String>, kids: List<DOM>): DO
 px(k: String, n: Nat, rest: Map<String>): Map<String>
   Map.set<String>(k, Nat.show(n) | "px", rest)
 
-w_cls(w: Nat): String
-  "w-[" | Nat.show(w) | "px] min-w-[" | Nat.show(w) | "px] max-w-[" | Nat.show(w) | "px] shrink-0 box-border"
-
 grip(i: Nat): DOM
   box(
     "tooltip tooltip-left absolute inset-y-0 right-0 w-1.5 cursor-col-resize bg-base-300 hover:bg-primary",
@@ -213,9 +210,10 @@ head_bg(i: Nat, sel: Nat): String
   else " bg-base-200"
 
 head_cell(i: Nat, w: Nat, sel: Nat): DOM
-  box(
-    w_cls(w) | " relative h-6 overflow-hidden border-r border-b border-base-300 px-1 text-xs font-semibold leading-6" | head_bg(i, sel),
+  box_st(
+    "relative h-6 overflow-hidden border-r border-b border-base-300 px-1 text-xs font-semibold leading-6 shrink-0 box-border" | head_bg(i, sel),
     Map.new<String>,
+    px("width", w, px("min-width", w, px("max-width", w, Map.set<String>("height", "24px", Map.new<String>)))),
     [Html.text(letter(i)), grip(i)]
   )
 
@@ -331,21 +329,25 @@ view(m: Model): DOM
   let scroller = box_st(
     "relative overflow-auto bg-base-100",
     Html.on(
-      "scroll",
-      "scroll",
+      "paste",
+      "paste",
       Html.on(
-        "keydown",
-        "key",
-        Html.attr(
-          "data-sure-scroll",
-          "1",
+        "scroll",
+        "scroll",
+        Html.on(
+          "keydown",
+          "key",
           Html.attr(
-            "data-sure-row-h",
-            Nat.show(row_h),
+            "data-sure-scroll",
+            "1",
             Html.attr(
-              "data-sure-y",
-              Nat.show(m.scroll),
-              Html.attr("tabindex", "0", Map.new<String>)
+              "data-sure-row-h",
+              Nat.show(row_h),
+              Html.attr(
+                "data-sure-y",
+                Nat.show(m.scroll),
+                Html.attr("tabindex", "0", Map.new<String>)
+              )
             )
           )
         )
@@ -413,6 +415,33 @@ hold(m: Model, scroll: Nat, widths: List<Nat>, drag: Drag, cells: Map<String>): 
   open m
   Model.new(scroll, widths, drag, cells, m.row, m.col)
 
+paste_vals(row: Nat, col: Nat, vs: List<String>, cells: Map<String>): Map<String>
+  case vs {
+    nil: cells
+    cons:
+      if Nat.lte(cols, col) then cells
+      else paste_vals(row, Nat.succ(col), vs.tail, cell_set(row, col, vs.head, cells))
+  }
+
+paste_line(row: Nat, col: Nat, line: String, cells: Map<String>): Map<String>
+  if Nat.lte(total, row) then cells
+  else paste_vals(row, col, String.split(line, "\t"), cells)
+
+paste_grid.go(row: Nat, col: Nat, lines: List<String>, cells: Map<String>): Map<String>
+  case lines {
+    nil: cells
+    cons:
+      case lines.tail {
+        nil:
+          if String.is_empty(lines.head) then cells
+          else paste_line(row, col, lines.head, cells)
+        cons: paste_grid.go(Nat.succ(row), col, lines.tail, paste_line(row, col, lines.head, cells))
+      }
+  }
+
+paste_grid(row: Nat, col: Nat, text: String, cells: Map<String>): Map<String>
+  paste_grid.go(row, col, String.split(text, "\n"), cells)
+
 update(msg: String, ev: Html.Event.Data, m: Model): Pair<Model, Sure.Ui.Cmd>
   open m
   open ev
@@ -428,8 +457,14 @@ update(msg: String, ev: Html.Event.Data, m: Model): Pair<Model, Sure.Ui.Cmd>
     Pair.new<Model, Sure.Ui.Cmd>(m, Sure.Ui.Cmd.none)
   else if String.eql(msg, "bar") then
     Pair.new<Model, Sure.Ui.Cmd>(hold(m, m.scroll, m.widths, m.drag, cell_set(m.row, m.col, ev.value, m.cells)), Sure.Ui.Cmd.none)
+  else if String.eql(msg, "paste") then
+    Pair.new<Model, Sure.Ui.Cmd>(hold(m, m.scroll, m.widths, m.drag, paste_grid(m.row, m.col, ev.value, m.cells)), Sure.Ui.Cmd.none)
   else if String.eql(msg, "key") then
-    if String.eql(ev.key, "ArrowDown") then Pair.new<Model, Sure.Ui.Cmd>(move(m, Nat.succ(m.row), m.col), Sure.Ui.Cmd.none)
+    if String.eql(ev.key, "Delete") then
+      Pair.new<Model, Sure.Ui.Cmd>(hold(m, m.scroll, m.widths, m.drag, cell_set(m.row, m.col, "", m.cells)), Sure.Ui.Cmd.none)
+    else if String.eql(ev.key, "Backspace") then
+      Pair.new<Model, Sure.Ui.Cmd>(hold(m, m.scroll, m.widths, m.drag, cell_set(m.row, m.col, "", m.cells)), Sure.Ui.Cmd.none)
+    else if String.eql(ev.key, "ArrowDown") then Pair.new<Model, Sure.Ui.Cmd>(move(m, Nat.succ(m.row), m.col), Sure.Ui.Cmd.none)
     else if String.eql(ev.key, "ArrowUp") then
       Pair.new<Model, Sure.Ui.Cmd>(move(m, if Nat.is_zero(m.row) then 0 else Nat.sub(m.row, 1), m.col), Sure.Ui.Cmd.none)
     else if String.eql(ev.key, "ArrowRight") then Pair.new<Model, Sure.Ui.Cmd>(move(m, m.row, Nat.succ(m.col)), Sure.Ui.Cmd.none)

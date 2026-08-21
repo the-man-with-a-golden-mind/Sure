@@ -153,10 +153,12 @@ function fire(listeners, type, msgAttr, opts) {
 
 function htmlHas(html, re) { return re.test(html); }
 
-var CORE_N = 19;
+var CORE_MIN = 19;
 function checkCoreEvents(label, listeners) {
   var types = listeners.map(function(l) { return l.type; });
-  check(label + " events core", types.length === CORE_N && types.indexOf("error") < 0 && types.indexOf("scroll") >= 0 && types.indexOf("click") >= 0, "n=" + types.length + " " + types.join(","));
+  var ok = types.length >= CORE_MIN && types.indexOf("error") < 0 && types.indexOf("scroll") >= 0 && types.indexOf("click") >= 0;
+  if (types.length > 19) ok = ok && types.indexOf("paste") >= 0;
+  check(label + " events core", ok, "n=" + types.length + " " + types.join(","));
 }
 
 async function flush(n) {

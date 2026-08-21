@@ -45,8 +45,15 @@ async function main() {
       if (sc) {
         var box = await sc.boundingBox();
         await page.mouse.move(box.x + 40, box.y + 40);
-        await page.mouse.wheel({deltaY: 800});
-        await new Promise(function(r) { setTimeout(r, 200); });
+        await page.mouse.wheel({deltaY: 2400});
+        await page.evaluate(function() {
+          return new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+        });
+        var row = await page.evaluate(function() {
+          var n = document.querySelector("[data-sure-row]");
+          return n ? n.getAttribute("data-sure-row") : "0";
+        });
+        if (!(Number(row) > 0)) errors.push("virtual row still " + row);
       }
     }
     var ms = Date.now() - t0;

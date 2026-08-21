@@ -6,18 +6,23 @@ Html.Event.Data.at(xs: List<String>, i: Nat): String
 
 Html.Event.Data.parse(raw: String): Html.Event.Data
   let xs = String.split(raw, "\n")
+  let n = List.length<String>(xs)
+  let key_i = if Nat.lte(n, 13) then 4 else Nat.sub(n, 9)
+  let value =
+    if Nat.lte(n, 13) then Html.Event.Data.at(xs, 3)
+    else String.join("\n", List.take<String>(Nat.sub(n, 12), List.drop<String>(3, xs)))
   Html.Event.Data.new(
     Html.Event.click,
     Html.Event.Data.at(xs, 1),
     Html.Event.Data.at(xs, 2),
-    Html.Event.Data.at(xs, 3),
-    Html.Event.Data.at(xs, 4),
-    Html.Event.Data.nat(Html.Event.Data.at(xs, 5)),
-    Html.Event.Data.nat(Html.Event.Data.at(xs, 6)),
-    Html.Event.Data.nat(Html.Event.Data.at(xs, 7)),
-    Html.Event.Data.bit(Html.Event.Data.at(xs, 8)),
-    Html.Event.Data.bit(Html.Event.Data.at(xs, 9)),
-    Html.Event.Data.bit(Html.Event.Data.at(xs, 10)),
-    Html.Event.Data.bit(Html.Event.Data.at(xs, 11)),
-    Html.Event.Data.bit(Html.Event.Data.at(xs, 12))
+    value,
+    Html.Event.Data.at(xs, key_i),
+    Html.Event.Data.nat(Html.Event.Data.at(xs, Nat.succ(key_i))),
+    Html.Event.Data.nat(Html.Event.Data.at(xs, Nat.add(key_i, 2))),
+    Html.Event.Data.nat(Html.Event.Data.at(xs, Nat.add(key_i, 3))),
+    Html.Event.Data.bit(Html.Event.Data.at(xs, Nat.add(key_i, 4))),
+    Html.Event.Data.bit(Html.Event.Data.at(xs, Nat.add(key_i, 5))),
+    Html.Event.Data.bit(Html.Event.Data.at(xs, Nat.add(key_i, 6))),
+    Html.Event.Data.bit(Html.Event.Data.at(xs, Nat.add(key_i, 7))),
+    Html.Event.Data.bit(Html.Event.Data.at(xs, Nat.add(key_i, 8)))
   )

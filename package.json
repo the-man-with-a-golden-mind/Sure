@@ -1,1 +1,43 @@
-{}
+{
+  "name": "sure-lang",
+  "version": "0.1.0",
+  "description": "Sure — a dependent language. Write .sure, prove, emit JavaScript.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "bin/js/src/sure.js",
+  "bin": {
+    "sure": "bin/sure",
+    "kind": "bin/kind"
+  },
+  "files": [
+    "bin/sure",
+    "bin/kind",
+    "bin/js/src",
+    "bin/js/package.json",
+    "base/**/*.sure",
+    "base/**/*.js",
+    "base/**/*.fmc",
+    "base/**/*.sh",
+    "vendor/formcore-js",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/the-man-with-a-golden-mind/Sure.git"
+  },
+  "bugs": {
+    "url": "https://github.com/the-man-with-a-golden-mind/Sure/issues"
+  },
+  "homepage": "https://github.com/the-man-with-a-golden-mind/Sure#readme",
+  "keywords": [
+    "sure",
+    "kind",
+    "proof",
+    "dependent-types"
+  ]
+}

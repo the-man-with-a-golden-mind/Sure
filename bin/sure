@@ -1,19 +1,30 @@
 #!/bin/sh
-# Repo-local Sure CLI. `bin/kind` is the same entry point.
-# Node is the default. Bun: --bun or SURE_RUNTIME=bun.
-ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
-MAIN="$ROOT/bin/js/src/main.js"
-want_bun=0
-[ "$SURE_RUNTIME" = "bun" ] && want_bun=1
-for a in "$@"; do
-  [ "$a" = "--bun" ] && want_bun=1
+# Repo-local and globally-linked Sure CLI. `bin/kind` is the same entry point.
+# Bun is the default when it is on PATH. Node 18+: SURE_RUNTIME=node or --node.
+SELF="$0"
+while [ -L "$SELF" ]; do
+  DIR="$(CDPATH= cd -- "$(dirname "$SELF")" && pwd)"
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in
+    /*) SELF="$LINK" ;;
+    *) SELF="$DIR/$LINK" ;;
+  esac
 done
-if [ "$want_bun" = 1 ]; then
-  if command -v bun >/dev/null 2>&1; then
-    exec bun "$MAIN" "$@"
-  fi
-  echo "sure: bun not found (--bun or SURE_RUNTIME=bun)" >&2
-  exit 1
+ROOT="$(CDPATH= cd -- "$(dirname "$SELF")/.." && pwd)"
+MAIN="$ROOT/bin/js/src/main.js"
+if [ -z "$SURE_BASE" ] && [ -z "$KIND_BASE" ] && [ -f "$ROOT/base/Nat.sure" ]; then
+  SURE_BASE="$ROOT/base"
+  export SURE_BASE
+  KIND_BASE="$SURE_BASE"
+  export KIND_BASE
+fi
+want_node=0
+[ "$SURE_RUNTIME" = "node" ] && want_node=1
+for a in "$@"; do
+  [ "$a" = "--node" ] && want_node=1
+done
+if [ "$want_node" != 1 ] && command -v bun >/dev/null 2>&1; then
+  exec bun "$MAIN" "$@"
 fi
 node_ok() {
   "$1" -e 'var m=parseInt(String(process.versions.node).split(".")[0],10); if(!(m>=18)) process.exit(2); if(typeof AbortController!=="function") process.exit(3);' >/dev/null 2>&1
@@ -39,7 +50,7 @@ pick_node() {
   return 1
 }
 NODE="$(pick_node)" || {
-  echo "sure: need Node 18+ with AbortController. Set SURE_NODE to that binary." >&2
+  echo "sure: need Bun, or Node 18+ with AbortController. Set SURE_NODE to that binary." >&2
   exit 1
 }
 exec "$NODE" --stack-size=10000 "$MAIN" "$@"

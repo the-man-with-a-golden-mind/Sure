@@ -1,5 +1,6 @@
 {
-  "name": "sure-lang",
+  "name": "sure-lang-cli",
+  "private": true,
   "version": "0.1.0",
   "description": "Sure — a fork of Legacy Kind",
   "main": "src/sure.js",

@@ -10,12 +10,27 @@ JavaScript/Node is the application runtime. There is no Chez / Scheme host.
 
 ## JavaScript (primary)
 
-Requires Node 18+.
+Requires **Bun** (or Node 18+). `bin/sure` runs with Bun when `bun` is on `PATH`.
 
-From the repository root:
+The installable package is **`sure-lang`**: CLI, checker, `base/` stdlib, and FormCore in one tree.
 
 ```bash
-npm install --omit=dev --prefix bin/js
+# from this clone
+bun add -g .
+
+# or from GitHub (no clone)
+bun add -g github:the-man-with-a-golden-mind/Sure
+
+sure --version
+sure Main --run
+```
+
+npm is the same layout: `npm install -g .` (Node 18+). Force Node: `SURE_RUNTIME=node` or `sure --node`.
+
+From the repository without a global install:
+
+```bash
+bun install --omit=dev --cwd bin/js
 chmod +x bin/sure bin/kind
 ./bin/sure --version
 ./bin/sure Nat.add

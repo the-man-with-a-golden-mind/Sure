@@ -49,12 +49,14 @@ Reference still in the tree: [SYNTAX.md](SYNTAX.md), [THEOREMS.md](THEOREMS.md),
 ## Quick start
 
 ```bash
-npm install --omit=dev --prefix bin/js
-./bin/sure --version
-./bin/sure Main --run
-./bin/sure new /tmp/hello
-cd /tmp/hello && /path/to/Kind-Legacy/bin/sure prove && /path/to/Kind-Legacy/bin/sure run
+bun add -g github:the-man-with-a-golden-mind/Sure
+sure --version
+sure Main --run
+sure new /tmp/hello
+cd /tmp/hello && sure prove && sure run
 ```
+
+From a clone: `bun add -g .` (or `npm install -g .`). The package is `sure-lang`: CLI, `base/` stdlib, and FormCore.
 
 Inside this repository the checker finds `base/` itself. Elsewhere:
 

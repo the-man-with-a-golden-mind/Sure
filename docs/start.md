@@ -4,13 +4,21 @@ Sure is one language for programs and proofs. A function is a term. A theorem is
 
 ## Install
 
-Requires **Node 18+**. Bun is optional (`sure --bun`, or `SURE_RUNTIME=bun`).
+Requires **Bun** (or Node 18+). The CLI uses Bun when `bun` is on `PATH`. Node: `SURE_RUNTIME=node` or `--node`.
 
-From the repository:
+```bash
+bun add -g github:the-man-with-a-golden-mind/Sure
+sure --version
+sure Main --run
+```
+
+From a clone of this repository: `bun add -g .`
+
+From the repository without a global install:
 
 ```bash
 cd Kind-Legacy
-npm install --omit=dev --prefix bin/js
+bun install --omit=dev --cwd bin/js
 chmod +x bin/sure bin/kind
 ./bin/sure --version
 ```

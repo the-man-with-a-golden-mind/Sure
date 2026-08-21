@@ -38,7 +38,11 @@ function run_spawn(cmd, args, opts) {
 var formcore_path = path.join(__dirname, "../../../vendor/formcore-js");
 var {fmc_to_js} = require(formcore_path);
 
-var PKG = require("./../package.json");
+var PKG = (function() {
+  try { return require("../../../package.json"); } catch (e) {}
+  try { return require("../package.json"); } catch (e2) {}
+  return {version: "0.0.0"};
+})();
 var SURE_VERSION = PKG.version;
 var KIND_LINEAGE = "1.0.121";
 var ADD_PATH = "";
@@ -242,6 +246,10 @@ function env_base() {
   return process.env.SURE_BASE || process.env.KIND_BASE;
 }
 
+function bundled_base() {
+  return path.resolve(__dirname, "../../../base");
+}
+
 function find_base_dir() {
   if (env_base()) {
     var kb = path.resolve(env_base());
@@ -278,9 +286,16 @@ function find_base_dir() {
     dir = parent;
   }
 
+  var bundled = bundled_base();
+  if (is_base_dir(bundled)) {
+    process.chdir(bundled);
+    STDLIB_BASE = bundled;
+    return;
+  }
+
   console.error("# Sure " + SURE_VERSION);
   console.error("Couldn't find Sure base directory.");
-  console.error("Run from the repo (or its base/), or set SURE_BASE (KIND_BASE still works).");
+  console.error("Install the sure-lang package, run from the repo, or set SURE_BASE.");
   process.exit(1);
 }
 find_base_dir();
@@ -2948,8 +2963,9 @@ function spawn_term_run(term) {
 }
 
 (async () => {
-  var argv = process.argv.slice(2).filter(function(a) { return a !== "--bun"; });
-  var use_bun = process.argv.indexOf("--bun") >= 0 || process.env.SURE_RUNTIME === "bun";
+  var argv = process.argv.slice(2).filter(function(a) { return a !== "--bun" && a !== "--node"; });
+  var use_bun = (process.argv.indexOf("--bun") >= 0 || process.env.SURE_RUNTIME === "bun" || bun_native())
+    && process.argv.indexOf("--node") < 0 && process.env.SURE_RUNTIME !== "node";
   var name = argv[0];
   var flag = argv[1];
 

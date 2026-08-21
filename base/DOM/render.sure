@@ -6,13 +6,11 @@ DOM.render(n: DOM): String
     text: Html.escape(n.value)
     fragment: DOM.render_kids(n.children)
     node:
-      case Html.Tag.read(n.tag) {
-        none: ""
-        some:
-          let open_tag = "<" | n.tag | DOM.prop_attr(n.props) | DOM.style_attr(n.style)
-          if Html.void_name(n.tag) then
-            open_tag | ">"
-          else
-            open_tag | ">" | DOM.render_kids(n.children) | "</" | n.tag | ">"
-      }
+      if Bool.not(Html.ok_ident(n.tag)) then ""
+      else
+        let open_tag = "<" | n.tag | DOM.prop_attr(n.props) | DOM.style_attr(n.style)
+        if Html.void_name(n.tag) then
+          open_tag | ">"
+        else
+          open_tag | ">" | DOM.render_kids(n.children) | "</" | n.tag | ">"
   }

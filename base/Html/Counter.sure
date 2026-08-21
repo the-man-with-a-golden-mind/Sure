@@ -1,7 +1,7 @@
 Html.Counter.view(n: Nat): DOM
-  Html.el(
-    Html.Tag.button,
-    Html.on(Html.Event.click, "inc", Map.new<String>),
+  DOM.node(
+    "button",
+    Map.set<String>("on-click", "inc", Map.new<String>),
     Map.new<String>,
     [DOM.text(Nat.show(n))]
   )

@@ -3,6 +3,7 @@
 // and compiler.ident_bindings (not regex-over-the-file).
 module.exports = function makeLsp(deps) {
   var compiler = deps.compiler;
+  var kind = deps.kind;
   var fs = deps.fs;
   var path = deps.path;
   var json_err = deps.json_err;
@@ -132,7 +133,55 @@ function lsp_apply_changes(text, changes) {
   return cur;
 }
 
+function list_to_array(xs) {
+  var out = [];
+  while (xs && xs._ === "List.cons") {
+    out.push(xs.head);
+    xs = xs.tail;
+  }
+  return out;
+}
+
+function pair_nats(p) {
+  if (!p) return {from: 0, upto: 0};
+  var a = p.fst != null ? p.fst : p.value;
+  var b = p.snd != null ? p.snd : 0;
+  return {from: Number(a) || 0, upto: Number(b) || 0};
+}
+
+function parser_defs(file, code) {
+  if (!kind) return null;
+  var read = kind["Sure.Defs.read"] || kind["Kind.Defs.read"];
+  var empty = kind["Sure.Map.new"] || kind["Kind.Map.new"];
+  var keysFn = kind["BitsMap.keys"];
+  var fromBits = kind["Sure.Name.from_bits"] || kind["Kind.Name.from_bits"];
+  var getFn = kind["Sure.Map.get"] || kind["Kind.Map.get"];
+  var toBits = kind["Sure.Name.to_bits"] || kind["Kind.Name.to_bits"];
+  if (typeof read !== "function" || !empty || typeof keysFn !== "function" || typeof fromBits !== "function") return null;
+  var parsed;
+  try { parsed = read(String(file || "open.sure"))(String(code || ""))(empty); }
+  catch (e) { return null; }
+  if (!parsed || parsed._ !== "Either.right") return null;
+  var names = list_to_array(keysFn(parsed.value)).map(function(bits) { return fromBits(bits); });
+  var out = [];
+  for (var i = 0; i < names.length; i++) {
+    var defn = null;
+    try {
+      if (typeof getFn === "function" && typeof toBits === "function") {
+        var got = getFn(toBits(names[i]))(parsed.value);
+        if (got && got._ === "Maybe.some") defn = got.value;
+      }
+    } catch (eG) { defn = null; }
+    var orig = defn && defn.orig ? pair_nats(defn.orig) : {from: 0, upto: 0};
+    var rng = lsp_range_from_origin(code, orig) || {start: {line: 0, character: 0}, end: {line: 0, character: (names[i] || "").length}};
+    out.push({name: names[i], line: rng.start.line, endLine: rng.end.line, from: orig.from, upto: orig.upto, range: rng, theorem: false, type: "", kind: "def"});
+  }
+  return out;
+}
+
 function lsp_defs_in_text(text) {
+  var fromParser = parser_defs("buffer.sure", text);
+  if (fromParser && fromParser.length) return fromParser;
   var parsed = compiler.parse_module_headers(text);
   var mod = parsed.mod && parsed.mod.name;
   var doc = compiler.parse_document(text);
@@ -386,6 +435,15 @@ async function lsp_handle(state, msg) {
   if (method === "textDocument/definition") {
     name = lsp_name_at(text, pos.line, pos.character);
     if (!name) { result(null); return {state: state, out: out}; }
+    var localDefs = parser_defs(uri || "buffer.sure", text) || [];
+    var localHit = null;
+    for (var li = 0; li < localDefs.length; li++) {
+      if (localDefs[li].name === name || localDefs[li].name.split(".").pop() === name) { localHit = localDefs[li]; break; }
+    }
+    if (localHit && localHit.range) {
+      result({uri: uri, range: localHit.range});
+      return {state: state, out: out};
+    }
     var defs = scan_defs();
     var hit = null;
     for (var di = 0; di < defs.length; di++) { if (defs[di].name === name) { hit = defs[di]; break; } }

@@ -6,12 +6,8 @@ Html.Event.Data.at(xs: List<String>, i: Nat): String
 
 Html.Event.Data.parse(raw: String): Html.Event.Data
   let xs = String.split(raw, "\n")
-  let kind = case Html.Event.read(Html.Event.Data.at(xs, 0)) as k {
-    none: Html.Event.click
-    some: k.value
-  }
   Html.Event.Data.new(
-    kind,
+    Html.Event.click,
     Html.Event.Data.at(xs, 1),
     Html.Event.Data.at(xs, 2),
     Html.Event.Data.at(xs, 3),

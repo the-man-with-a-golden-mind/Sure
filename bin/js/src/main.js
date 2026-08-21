@@ -1306,6 +1306,7 @@ function compiler_input_hash() {
     path.join(formcore_path, "host-schema.js"),
     path.join(formcore_path, "host-abort.js"),
     path.join(formcore_path, "host-pack.js"),
+    path.join(formcore_path, "host-io-gen.js"),
     path.join(formcore_path, "ws-frames.js")
   ].forEach(function(p) {
     h.update(file_fingerprint(p));
@@ -3348,6 +3349,7 @@ async function cmd_agent_client(method, arg) {
 
 var lsp = require("./lsp")({
   compiler: compiler,
+  kind: kind,
   fs: fs,
   path: path,
   json_err: json_err,
@@ -4180,11 +4182,26 @@ async function run_prove_edges() {
   if (SURE_DOM_EVENTS.length !== 122) {
     console.log("fail event count " + SURE_DOM_EVENTS.length); failed += 1;
   } else console.log("ok   event count 122");
-  var stub_js = "module.exports={view:function(){return {tag:'button',kids:[]};}};";
-  var page_c = sure_html_wrap("Html.Counter.client", stub_js);
-  if (!page_c || page_c.indexOf("SureDom.mount") < 0 || page_c.indexOf("visibilitychange") < 0 || page_c.indexOf("\"click\"") < 0) {
-    console.log("fail html counter page"); failed += 1;
-  } else console.log("ok   html counter page");
+  try {
+    console.log("compile js Html.Counter.client  [" + new Date().toISOString() + "]");
+    var t0 = Date.now();
+    var js_c = await compile_term_js("Html.Counter.client");
+    var dt = Date.now() - t0;
+    console.log("emit Html.Counter.client " + dt + "ms");
+    if (!js_c || js_c.indexOf("module.exports") < 0) {
+      console.log("fail compile Html.Counter.client"); failed += 1;
+    } else if (js_c.indexOf("Html$Event$read$") >= 0 || js_c.indexOf("Html$Tag$read$") >= 0) {
+      console.log("fail Counter pulls event/tag tables"); failed += 1;
+    } else if (dt > 15000) {
+      console.log("fail Counter emit too slow " + dt + "ms"); failed += 1;
+    } else console.log("ok   compile Html.Counter.client");
+    var page_c = sure_html_wrap("Html.Counter.client", js_c);
+    if (!page_c || page_c.indexOf("SureDom.mount") < 0 || page_c.indexOf("visibilitychange") < 0 || page_c.indexOf("\"click\"") < 0) {
+      console.log("fail html counter page"); failed += 1;
+    } else console.log("ok   html counter page");
+  } catch (e) {
+    console.log("fail Html.Counter.client " + e); failed += 1;
+  }
   if (sure_emit_html_file("") !== "" || sure_emit_html_file("Main") !== "dist/Main.html") {
     console.log("fail emit html file"); failed += 1;
   } else console.log("ok   emit html file");

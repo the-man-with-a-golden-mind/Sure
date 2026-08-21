@@ -1,0 +1,21 @@
+// Bounded behavioral slice for CI. Not Test.suite / Test.main.
+Test.ci.suite: Test
+  Test.group("CI", [
+    Test.unit("nat empty", Test.nat(Nat.read_base(10, ""), 0)),
+    Test.unit("nat 42", Test.nat(Nat.read_base(10, "42"), 42)),
+    Test.unit("slice", Test.string(String.slice(1, 4, "abcdef"), "bcd")),
+    Test.unit("ok empty", Test.bool(String.ok("", [" "]), false)),
+    Test.unit("ok ada", Test.bool(String.ok("ada", [" ", "\n"]), true)),
+    Test.unit("pack empty", Test.string(Proc.pack(""), "0\n")),
+    Test.unit("guard err", Test.bool(Outcome.is_ok<String, Unit>(Outcome.guard<String>(false, "x")), false)),
+    Test.unit("guard ok", Test.bool(Outcome.is_ok<String, Unit>(Outcome.guard<String>(true, "x")), true)),
+    Test.unit("map_err ok", Test.bool(
+      Outcome.is_ok<String, Nat>(Outcome.map_err<Nat, String, Nat>(Outcome.ok<Nat, Nat>(1), (e) Nat.show(e))),
+      true))
+  ])
+
+Test.ci: IO<Unit>
+  IO {
+    get stats = Test.run(Test.ci.suite)
+    Test.finish(stats)
+  }

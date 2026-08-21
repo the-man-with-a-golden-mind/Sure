@@ -30,7 +30,8 @@ Truth pass (audit):
 - `format_source` keeps relative indent inside a definition. LSP rename/highlight follow `get`/`let`/`{}` bindings, not every same token.
 - `Proc.env.pack` / `Proc.run.with` pack environment pairs. Junk packs are `bad_pack`.
 - `IO.bracket`: if `use` succeeds, a `release` throw is the result; if `use` fails, that error wins.
-- `Test.main` prints group phases, 15s timeouts on `Test.io`, and `SURE_TEST_GROUP` sharding.
+- `Test.main` prints group phases, 15s timeouts on `Test.io`, and `SURE_TEST_GROUP` sharding. CI runs `Test.ci` (a small behavioral suite), not the full `Test.suite`.
+- LSP protocol lives in `bin/js/src/lsp.js`. Symbols use `parse_document` block ranges; rename/highlight use `ident_bindings`.
 
 `when { pred: val ... } default rest` is the table form of nested `if` (first true wins). `case` stays constructor matching. `switch f { key: v }` stays one `A -> Bool`. `String.ok(s, banned)` is nonempty and none of those substrings. `String.has_none` is the same without the empty check.
 

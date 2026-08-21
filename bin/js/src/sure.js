@@ -198,6 +198,22 @@ var nat_to_bits = n => {
   var HOST_RES = []; var HOST_FD = {}; var HOST_FD_N = 0; var HOST_STREAM = {}; var HOST_STREAM_N = 0;
   var host_ok = function(s) { return '0\n' + String(s == null ? '' : s); };
   var host_err = function(s) { return '1\n' + String(s == null ? '' : s); };
+  var host_on_abort = function(lib, fn) {
+    var ac = lib && lib.abort;
+    if (!ac || !ac.signal) return function() {};
+    if (ac.signal.aborted) { fn(); return function() {}; }
+    ac.signal.addEventListener('abort', fn, {once: true});
+    return function() { try { ac.signal.removeEventListener('abort', fn); } catch (eA) {} };
+  };
+  var host_abortable = function(lib, run) {
+    return new Promise(function(res) {
+      var done = false;
+      var finish = function(v) { if (done) return; done = true; off(); res(v); };
+      var off = host_on_abort(lib, function() { finish(host_err('cancelled')); });
+      if (lib && lib.abort && lib.abort.signal && lib.abort.signal.aborted) { finish(host_err('cancelled')); return; }
+      Promise.resolve().then(function() { return run(finish); }).catch(function(e) { finish(host_err(String(e && e.message || e))); });
+    });
+  };
   var host_release_all = (lib) => {
     while (HOST_RES.length) {
       var r = HOST_RES.pop();
@@ -354,21 +370,22 @@ function ws_handshake_ok(http) {
   };
   var host_tcp_recv = (lib, param) => {
     var rec = HOST_TCP[param]; if (!rec) return Promise.resolve('1\nclosed');
-    return new Promise((res) => {
+    return host_abortable(lib, function(finish) {
       var take = () => {
         if (rec.ws) {
           var frame = ws_take_frame_host(rec);
           if (!frame) return false;
           if (frame.ping) return take();
-          if (frame.close) { res('1\nclosed'); return true; }
-          res('0\n' + frame.text); return true;
+          if (frame.close) { finish('1\nclosed'); return true; }
+          finish('0\n' + frame.text); return true;
         }
-        if (rec.buf.length) { var s = rec.buf.toString('utf8'); rec.buf = Buffer.alloc(0); res('0\n' + s); return true; }
+        if (rec.buf.length) { var s = rec.buf.toString('utf8'); rec.buf = Buffer.alloc(0); finish('0\n' + s); return true; }
         return false;
       };
       if (take()) return;
-      rec.wait = () => { take() || res('0\n'); };
-      setTimeout(() => { if (rec.wait) { rec.wait = null; res('0\n'); } }, 3000);
+      rec.wait = () => { take() || finish('0\n'); };
+      var t = setTimeout(() => { if (rec.wait) { rec.wait = null; finish('0\n'); } }, 3000);
+      host_on_abort(lib, function() { clearTimeout(t); rec.wait = null; });
     });
   };
   var host_ws_connect = (lib, param) => {
@@ -466,18 +483,23 @@ function ws_handshake_ok(http) {
   var host_http_recv = (lib, param) => {
     var port = Number(param) || 0; var srv = HOST_HTTP_SRV[port];
     if (!srv) return Promise.resolve(host_err('closed'));
-    return new Promise((res) => {
-      var deliver = (rec) => res('0\n' + rec.id + '\n' + rec.method + '\n' + rec.url + '\n' + (rec.cookie || '') + '\n' + rec.body);
+    return host_abortable(lib, function(finish) {
+      var deliver = (rec) => finish('0\n' + rec.id + '\n' + rec.method + '\n' + rec.url + '\n' + (rec.cookie || '') + '\n' + rec.body);
       if (srv.mailbox.length) deliver(srv.mailbox.shift());
       else {
         var fn;
         var t = setTimeout(() => {
           var i = srv.waiters.indexOf(fn);
           if (i >= 0) srv.waiters.splice(i, 1);
-          res(host_ok(''));
+          finish(host_ok(''));
         }, 3000);
         fn = (rec) => { clearTimeout(t); deliver(rec); };
         srv.waiters.push(fn);
+        host_on_abort(lib, function() {
+          clearTimeout(t);
+          var i = srv.waiters.indexOf(fn);
+          if (i >= 0) srv.waiters.splice(i, 1);
+        });
       }
     });
   };
@@ -789,21 +811,21 @@ function ws_handshake_ok(http) {
   };
   var host_parse_argv = function(param) {
     var s = String(param || '');
-    var empty = {file: '', cwd: undefined, env: Object.assign({}, process.env), args: []};
-    var file = host_unpack(s, 0); if (!file) return empty;
-    var cwd = host_unpack(s, file.next); if (!cwd) return empty;
-    var envb = host_unpack(s, cwd.next); if (!envb) return empty;
+    if (!s) return {error: 'empty_pack'};
+    var file = host_unpack(s, 0); if (!file) return {error: 'bad_pack'};
+    var cwd = host_unpack(s, file.next); if (!cwd) return {error: 'bad_pack'};
+    var envb = host_unpack(s, cwd.next); if (!envb) return {error: 'bad_pack'};
     var env = Object.assign({}, process.env);
     var j = 0; var blob = envb.value;
-    while (true) {
-      var k = host_unpack(blob, j); if (!k) break;
-      var v = host_unpack(blob, k.next); if (!v) break;
+    while (j < blob.length) {
+      var k = host_unpack(blob, j); if (!k) return {error: 'bad_pack'};
+      var v = host_unpack(blob, k.next); if (!v) return {error: 'bad_pack'};
       if (k.value) env[k.value] = v.value;
       j = v.next;
     }
     var args = []; var i = envb.next;
-    while (true) {
-      var a = host_unpack(s, i); if (!a) break;
+    while (i < s.length) {
+      var a = host_unpack(s, i); if (!a) return {error: 'bad_pack'};
       args.push(a.value); i = a.next;
     }
     return {file: file.value, cwd: cwd.value || undefined, env: env, args: args};
@@ -812,6 +834,7 @@ function ws_handshake_ok(http) {
     return new Promise((res) => {
       try {
         var spec = host_parse_argv(param);
+        if (spec.error) { res(host_err(spec.error)); return; }
         if (!spec.file) { res(host_err('empty_name')); return; }
         var child = require('child_process').spawn(spec.file, spec.args, {cwd: spec.cwd || undefined, env: spec.env, shell: false, timeout: 8000, stdio: ['ignore', 'pipe', 'pipe']});
         var out = ''; var done = false;
@@ -849,6 +872,7 @@ function ws_handshake_ok(http) {
   var host_proc_spawn_ex = (lib, param) => {
     try {
       var spec = host_parse_argv(param);
+      if (spec.error) return Promise.resolve(host_err(spec.error));
       if (!spec.file) return Promise.resolve(host_err('empty_name'));
       var child = require('child_process').spawn(spec.file, spec.args, {cwd: spec.cwd || undefined, env: spec.env, shell: false, stdio: 'ignore'});
       var rec = {child: child, code: null, done: null};
@@ -860,6 +884,7 @@ function ws_handshake_ok(http) {
   var host_proc_spawn = (lib, param) => {
     try {
       var spec = host_parse_argv(param);
+      if (spec.error) return Promise.resolve(host_err(spec.error));
       if (!spec.file) return Promise.resolve(host_err('empty_name'));
       var child = require('child_process').spawn(spec.file, spec.args, {cwd: spec.cwd || undefined, env: spec.env, shell: false, stdio: 'ignore'});
       var rec = {child: child, code: null, done: null};
@@ -878,8 +903,9 @@ function ws_handshake_ok(http) {
   var host_proc_wait = async (lib, param) => {
     var rec = HOST_PROCS[param];
     if (!rec) return '1\nno pid';
-    var code = await rec.done;
-    return '0\n' + String(code);
+    return host_abortable(lib, function(finish) {
+      rec.done.then(function(code) { finish('0\n' + String(code)); });
+    });
   };
   var host_job_start = (lib, spec) => {
     var nl = spec.indexOf('\n'); var kind = nl === -1 ? spec : spec.slice(0, nl); var arg = nl === -1 ? '' : spec.slice(nl + 1);
@@ -895,16 +921,21 @@ function ws_handshake_ok(http) {
         !(typeof process !== 'undefined' && process.env && (process.env.SURE_FETCH_BASE === '1' || process.env.KIND_FETCH_BASE === '1'))) {
       return Promise.resolve('');
     }
+    var ac = lib && lib.abort;
     if (typeof fetch === 'undefined') {
-      return new Promise((res,err) => {
-        (/^https/.test(param)?lib.hs:lib.ht).get(param, r => {
+      return host_abortable(lib, function(finish) {
+        var req = (/^https/.test(param)?lib.hs:lib.ht).get(param, r => {
           let data = '';
           r.on('data', chunk => { data += chunk; });
-          r.on('end', () => res(data));
-        }).on('error', e => res(''));
+          r.on('end', () => finish(data));
+        });
+        req.on('error', e => finish(''));
+        host_on_abort(lib, function() { try { req.destroy(); } catch (eD) {} });
       });
     } else {
-      return fetch(param).then(res => res.text()).catch(e => '');
+      var opts = {};
+      if (ac && ac.signal) opts.signal = ac.signal;
+      return fetch(param, opts).then(res => res.text()).catch(e => '');
     }
   }
   let PORTS = {};
@@ -1122,8 +1153,8 @@ function ws_handshake_ok(http) {
       return String(Date.now());
     },
     get_line: async (lib, param) => {
-      return await new Promise((res,err) => {
-        lib.rl.question(param, (line) => res(line));
+      return host_abortable(lib, function(finish) {
+        lib.rl.question(param, function(line) { finish(host_ok(line)); });
       });
     },
     get_args: async (lib, param) => {
@@ -1546,13 +1577,19 @@ function ws_handshake_ok(http) {
       case 'IO.bracket':
         if (typeof io.use !== 'function' || typeof io.release !== 'function') throw new Error('IO.bracket missing use/release');
         var resource = await run_io(lib, io.acquire, 0, ac);
+        var useErr = null; var useVal;
         try {
-          return await run_io(lib, io.use(resource), 0, ac);
-        } finally {
-          var relAc = new AbortController();
-          var relLib = Object.assign({}, lib, {abort: relAc});
-          try { await run_io(relLib, io.release(resource), 0, relAc); } catch (eRel) {}
+          useVal = await run_io(lib, io.use(resource), 0, ac);
+        } catch (eUse) { useErr = eUse; }
+        var relAc = new AbortController();
+        var relLib = Object.assign({}, lib, {abort: relAc});
+        try {
+          await run_io(relLib, io.release(resource), 0, relAc);
+        } catch (eRel) {
+          if (!useErr) useErr = eRel;
         }
+        if (useErr) throw useErr;
+        return useVal;
       default:
         throw new Error('unknown IO ctor ' + (io && io._));
       }

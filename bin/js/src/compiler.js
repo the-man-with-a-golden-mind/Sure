@@ -950,7 +950,8 @@ function symbols(src) {
 function ident_bindings(src) {
   src = String(src || "");
   var toks = idents(src);
-  var stack = [Object.create(null)];
+  var fileScope = Object.create(null);
+  var stack = [fileScope];
   var bind_of = new Array(toks.length);
   var i = 0;
   var t = 0;
@@ -960,6 +961,11 @@ function ident_bindings(src) {
   var parenIdent = [];
   function push() { stack.push(Object.create(stack[stack.length - 1])); }
   function pop() { if (stack.length > 1) stack.pop(); }
+  function reset_def() {
+    stack.length = 1;
+    stack[0] = fileScope;
+    push();
+  }
   function bind(name, tokIndex) {
     var sc = Object.create(stack[stack.length - 1]);
     sc[name] = tokIndex;
@@ -981,6 +987,11 @@ function ident_bindings(src) {
     if ((src[k] === ")" || src[k] === ",") && lastParen >= 0 && !ident_before(lastParen)) return true;
     return false;
   }
+  function at_col0_ident(idx) {
+    if (idx > 0 && src[idx - 1] !== "\n") return false;
+    return true;
+  }
+  reset_def();
   while (i <= src.length && t < toks.length) {
     if (i >= src.length) break;
     if (src[i] === "\"" || src[i] === "'") {
@@ -1018,6 +1029,14 @@ function ident_bindings(src) {
     }
     if (toks[t].start === i) {
       var name = toks[t].name;
+      if (at_col0_ident(i) && name !== "get" && name !== "let") {
+        reset_def();
+        expectBinder = false;
+        bind_of[t] = -1;
+        i = toks[t].end;
+        t++;
+        continue;
+      }
       if (name === "get" || name === "let") {
         expectBinder = true;
         bind_of[t] = -1;

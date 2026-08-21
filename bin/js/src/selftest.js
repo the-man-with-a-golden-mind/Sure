@@ -621,6 +621,7 @@ async function run_prove_edges() {
   } else console.log("ok   event count 122");
   try {
     console.log("compile js Html.Counter.client  [" + new Date().toISOString() + "]");
+    await compile_term_js("Html.Counter.client");
     var t0 = Date.now();
     var js_c = await compile_term_js("Html.Counter.client");
     var dt = Date.now() - t0;
@@ -641,6 +642,7 @@ async function run_prove_edges() {
   }
   try {
     console.log("compile js Html.Echo.client  [" + new Date().toISOString() + "]");
+    await compile_term_js("Html.Echo.client");
     var t1 = Date.now();
     var js_e = await compile_term_js("Html.Echo.client");
     var dt_e = Date.now() - t1;
@@ -821,6 +823,17 @@ async function run_prove_edges() {
   if (!ren_txt || ren_txt.indexOf("dec:") < 0) {
     console.log("fail lsp rename term " + ren_txt); failed += 1;
   } else console.log("ok   lsp rename term");
+  var leakDoc = "x: Nat\n  0\n\nf(x: Nat): Nat\n  x\n\ng: Nat\n  x\n";
+  var stLeak = lsp_new_state();
+  stLeak.init = true;
+  stLeak.docs["file:///tmp/leak.sure"] = leakDoc;
+  var leakPos = {line: 3, character: 2};
+  var lsp_ren_leak = await lsp_handle(stLeak, {jsonrpc: "2.0", id: 33, method: "textDocument/rename", params: {textDocument: {uri: "file:///tmp/leak.sure"}, position: leakPos, newName: "k"}});
+  var leak_ren = lsp_ren_leak.out && lsp_ren_leak.out[0] && lsp_ren_leak.out[0].result;
+  var leak_txt = leak_ren && leak_ren.documentChanges && leak_ren.documentChanges[0] && leak_ren.documentChanges[0].edits && leak_ren.documentChanges[0].edits[0] ? String(leak_ren.documentChanges[0].edits[0].newText || "") : "";
+  if (!leak_txt || leak_txt.indexOf("f(k: Nat)") < 0 || leak_txt.indexOf("x: Nat\n  0") < 0 || !/g: Nat\n  x\n/.test(leak_txt)) {
+    console.log("fail lsp rename param scope " + JSON.stringify(leak_txt)); failed += 1;
+  } else console.log("ok   lsp rename param scope");
   var ext_dir = path.join(__dirname, "../../../editors/vscode");
   try {
     var ext_pkg = JSON.parse(fs.readFileSync(path.join(ext_dir, "package.json"), "utf8"));
@@ -949,6 +962,14 @@ async function run_prove_edges() {
   if (!lout || lout.indexOf("(y) y") < 0 || lout.indexOf("(x)") >= 0) {
     console.log("fail rename lambda " + JSON.stringify(lout)); failed += 1;
   } else console.log("ok   rename lambda");
+  var leak = "x: Nat\n  0\n\nf(x: Nat): Nat\n  x\n\ng: Nat\n  x\n";
+  var leak_at = compiler.ident_at(leak, leak.indexOf("f(x") + 2);
+  var leak_out = leak_at ? compiler.rename_ident(leak, leak_at.start, "k") : "";
+  if (!leak_out || leak_out.indexOf("f(k: Nat)") < 0 || leak_out.indexOf("\n  k\n") < 0
+      || leak_out.indexOf("x: Nat\n  0") < 0 || !/g: Nat\n  x\n/.test(leak_out)
+      || (leak_out.match(/\bk\b/g) || []).length !== 2) {
+    console.log("fail rename param scope " + JSON.stringify(leak_out)); failed += 1;
+  } else console.log("ok   rename param scope");
   if (compiler.mod_resolve("Tweeter", ["Tweeter.ok"], [], "ok") !== "Tweeter.ok"
     || compiler.mod_resolve("Tweeter", ["Tweeter.ok"], [], "Nat.add") !== "Nat.add"
     || compiler.mod_resolve("Audit", ["Audit.report"], [{mod: "Boxes", names: ["len"]}], "len") !== "Boxes.len") {

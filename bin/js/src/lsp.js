@@ -1,6 +1,7 @@
 "use strict";
-// Language server protocol. Hover/definition/symbols/rename walk Sure.Defs.read
-// terms (Sure.Term.ori / ref) and Sure.Term.show. Binders still use ident_bindings.
+// Language server protocol. Hover/definition/symbols walk Sure.Defs.read terms
+// (Sure.Term.ori / ref) and Sure.Term.show. Rename uses ident_bindings
+// (one scope per top-level def; not every same token).
 module.exports = function makeLsp(deps) {
   var compiler = deps.compiler;
   var kind = deps.kind;
@@ -649,9 +650,7 @@ async function lsp_handle(state, msg) {
     name = lsp_name_at(text, pos.line, pos.character);
     var newN = params.newName;
     if (!name || newN == null || String(newN) === "") { error(-32602, "need name"); return {state: state, out: out}; }
-    var infoRn = parser_info(uri || "buffer.sure", text);
-    var next = infoRn ? parser_rename(infoRn, name, String(newN), text) : null;
-    if (next == null) next = lsp_replace_word(text, off, String(newN));
+    var next = lsp_replace_word(text, off, String(newN));
     if (next == null) { error(-32602, "need name"); return {state: state, out: out}; }
     state.docs[uri] = next;
     var changes = [{

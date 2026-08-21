@@ -683,8 +683,27 @@ async function lsp_handle(state, msg) {
           var body;
           try { body = fs.readFileSync(fp, "utf8"); } catch (e) { continue; }
           var edited = body;
-          edited = compiler.rename_global(edited, name, String(newN));
-          if (qual !== name) edited = compiler.rename_global(edited, qual, parsedM.mod.name + "." + String(newN));
+          var parsed2 = compiler.parse_module_headers(body);
+          var otherMod = parsed2.mod && parsed2.mod.name;
+          var fromMod = parsedM.mod && parsedM.mod.name;
+          if (fromMod && otherMod === fromMod) {
+            edited = compiler.rename_global(edited, name, String(newN));
+            if (qual !== name) edited = compiler.rename_global(edited, qual, fromMod + "." + String(newN));
+          } else {
+            if (qual !== name && fromMod) {
+              edited = compiler.rename_global(edited, qual, fromMod + "." + String(newN));
+            }
+            var imps = (parsed2.mod && parsed2.mod.imports) || parsed2.imports || [];
+            var exposes = false;
+            for (var ii = 0; ii < imps.length; ii++) {
+              if (imps[ii].name === fromMod) {
+                var ex = imps[ii].exposing || {};
+                if (ex.all) exposes = true;
+                else if ((ex.names || []).indexOf(name) >= 0) exposes = true;
+              }
+            }
+            if (exposes) edited = compiler.rename_global(edited, name, String(newN));
+          }
           if (edited === body) continue;
           changes.push({
             textDocument: {uri: u2, version: null},

@@ -39,6 +39,7 @@ module.exports = function make(deps) {
   var sure_debug_flags_show = deps.sure_debug_flags_show;
   var sure_debug_level_read = deps.sure_debug_level_read;
   var sure_debug_open = deps.sure_debug_open;
+  var workspace = deps.workspace;
 
 async function cmd_prove(names, as_json, no_exit, debug, opt) {
   apply_project_env();
@@ -49,6 +50,15 @@ async function cmd_prove(names, as_json, no_exit, debug, opt) {
   var lv = debug === true ? "trace" : (debug || "");
   var flags = sure_debug_flags_read(opt || "");
   if (!as_json) console.log("== prove (type checker is the prover) ==");
+  var named = [];
+  for (var pi = 0; pi < list.length; pi++) {
+    var spec0 = list[pi];
+    var code0 = spec0.indexOf("\n") >= 0 || (/\s/.test(spec0) && /:/.test(spec0));
+    if (!code0) named.push(spec0);
+  }
+  if (named.length && workspace && workspace.check_names) {
+    try { await workspace.check_names(named); } catch (eW) {}
+  }
   for (var i = 0; i < list.length; i++) {
     var spec = list[i];
     var is_code = spec.indexOf("\n") >= 0 || (/\s/.test(spec) && /:/.test(spec));

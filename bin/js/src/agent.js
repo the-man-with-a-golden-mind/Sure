@@ -58,6 +58,12 @@ function parse_json_loose(text) {
 }
 
 async function agent_check_name(name) {
+  if (deps.workspace && typeof deps.workspace.check_names === "function") {
+    try {
+      var ws = await deps.workspace.check_names([name]);
+      if (ws) return gate_residual_holes(name, ws, null);
+    } catch (e0) {}
+  }
   var report;
   if (checker("api.io.check_term_json")) {
     var text = await capture_kind(function() {

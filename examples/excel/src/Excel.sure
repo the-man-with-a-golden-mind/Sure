@@ -8,12 +8,8 @@ type Drag {
   col(i: Nat, x: Nat, w: Nat)
 }
 
-type Cell {
-  new(row: Nat, col: Nat, text: String)
-}
-
 type Model {
-  new(scroll: Nat, widths: List<Nat>, drag: Drag, cells: List<Cell>)
+  new(scroll: Nat, widths: List<Nat>, drag: Drag, cells: Map<String>)
 }
 
 port: Nat
@@ -56,34 +52,19 @@ widths_new: List<Nat>
   widths_new.go(cols, [])
 
 init: Model
-  Model.new(0, widths_new, Drag.none, [])
+  Model.new(0, widths_new, Drag.none, Map.new<String>)
 
-cell_get.go(row: Nat, col: Nat, xs: List<Cell>): String
-  case xs {
-    nil: cell(row, col)
-    cons:
-      let c = xs.head
-      open c
-      if Nat.eql(c.row, row) then
-        if Nat.eql(c.col, col) then c.text
-        else cell_get.go(row, col, xs.tail)
-      else cell_get.go(row, col, xs.tail)
+cell_key(row: Nat, col: Nat): String
+  Nat.show(row) | ":" | Nat.show(col)
+
+cell_get(row: Nat, col: Nat, cells: Map<String>): String
+  case Map.get<String>(cell_key(row, col), cells) as a {
+    none: cell(row, col)
+    some: a.value
   }
 
-cell_get(row: Nat, col: Nat, xs: List<Cell>): String
-  cell_get.go(row, col, xs)
-
-cell_set(row: Nat, col: Nat, text: String, xs: List<Cell>): List<Cell>
-  case xs {
-    nil: [Cell.new(row, col, text)]
-    cons:
-      let c = xs.head
-      open c
-      if Nat.eql(c.row, row) then
-        if Nat.eql(c.col, col) then List.cons<Cell>(Cell.new(row, col, text), xs.tail)
-        else List.cons<Cell>(c, cell_set(row, col, text, xs.tail))
-      else List.cons<Cell>(c, cell_set(row, col, text, xs.tail))
-  }
+cell_set(row: Nat, col: Nat, text: String, cells: Map<String>): Map<String>
+  Map.set<String>(cell_key(row, col), text, cells)
 
 set_of(msg: String): Maybe<Pair<Nat, Nat>>
   if Bool.not(String.starts_with(msg, "set-")) then none
@@ -190,6 +171,12 @@ read_widths(s: String): List<Nat>
 box(cls: String, props: Map<String>, kids: List<DOM>): DOM
   Html.el("div", Html.attr("class", cls, props), Map.new<String>, kids)
 
+box_st(cls: String, props: Map<String>, style: Map<String>, kids: List<DOM>): DOM
+  Html.el("div", Html.attr("class", cls, props), style, kids)
+
+px(k: String, n: Nat, rest: Map<String>): Map<String>
+  Map.set<String>(k, Nat.show(n) | "px", rest)
+
 w_cls(w: Nat): String
   "w-[" | Nat.show(w) | "px] min-w-[" | Nat.show(w) | "px] max-w-[" | Nat.show(w) | "px] shrink-0 box-border"
 
@@ -227,7 +214,7 @@ header(ws: List<Nat>): DOM
     List.cons<DOM>(num_cell("#"), head_cells.go(0, ws))
   )
 
-cell_input(row: Nat, col: Nat, w: Nat, cells: List<Cell>): DOM
+cell_input(row: Nat, col: Nat, w: Nat, cells: Map<String>): DOM
   Html.el(
     "input",
     Html.on(
@@ -238,16 +225,16 @@ cell_input(row: Nat, col: Nat, w: Nat, cells: List<Cell>): DOM
         cell_get(row, col, cells),
         Html.attr(
           "class",
-          w_cls(w) | " h-6 overflow-hidden truncate border-r border-b border-base-300 bg-base-100 px-1 text-xs leading-6 input input-ghost input-xs min-h-0",
+          "h-6 overflow-hidden truncate border-r border-b border-base-300 bg-base-100 px-1 text-xs leading-6 input input-ghost input-xs min-h-0 shrink-0 box-border",
           Map.new<String>
         )
       )
     ),
-    Map.new<String>,
+    px("width", w, px("min-width", w, px("max-width", w, Map.set<String>("height", "24px", Map.new<String>)))),
     []
   )
 
-body_cells.go(row: Nat, col: Nat, ws: List<Nat>, cells: List<Cell>): List<DOM>
+body_cells.go(row: Nat, col: Nat, ws: List<Nat>, cells: Map<String>): List<DOM>
   case ws {
     nil: []
     cons: List.cons<DOM>(
@@ -256,16 +243,17 @@ body_cells.go(row: Nat, col: Nat, ws: List<Nat>, cells: List<Cell>): List<DOM>
     )
   }
 
-row_view(idx: Nat, ws: List<Nat>, cells: List<Cell>): DOM
+row_view(idx: Nat, ws: List<Nat>, cells: Map<String>): DOM
   let top = Nat.mul(idx, row_h)
   let wide = Nat.add(num_w, sum(ws))
-  box(
-    "absolute left-0 flex h-6 top-[" | Nat.show(top) | "px] w-[" | Nat.show(wide) | "px]",
+  box_st(
+    "flex h-6",
     Html.attr("data-sure-row", Nat.show(idx), Map.new<String>),
+    Map.set<String>("position", "absolute", Map.set<String>("left", "0", px("top", top, px("width", wide, Map.new<String>)))),
     List.cons<DOM>(num_cell(Nat.show(Nat.succ(idx))), body_cells.go(idx, 0, ws, cells))
   )
 
-rows.go(i: Nat, n: Nat, ws: List<Nat>, cells: List<Cell>): List<DOM>
+rows.go(i: Nat, n: Nat, ws: List<Nat>, cells: Map<String>): List<DOM>
   case n {
     zero: []
     succ: List.cons<DOM>(row_view(i, ws, cells), rows.go(Nat.succ(i), n.pred, ws, cells))
@@ -284,14 +272,16 @@ view(m: Model): DOM
   open win
   let h = Nat.mul(total, row_h)
   let wide = Nat.add(num_w, sum(m.widths))
-  let space = box(
-    "relative h-[" | Nat.show(h) | "px] w-[" | Nat.show(wide) | "px]",
+  let space = box_st(
+    "relative",
     Map.new<String>,
+    px("height", h, px("width", wide, Map.new<String>)),
     rows.go(win.fst, win.snd, m.widths, m.cells)
   )
-  let scroller = box(
-    "relative h-[480px] overflow-auto bg-base-100",
+  let scroller = box_st(
+    "relative overflow-auto bg-base-100",
     Html.on("scroll", "scroll", Html.attr("data-sure-scroll", "1", Map.new<String>)),
+    Map.set<String>("height", "480px", Map.set<String>("overflow", "auto", Map.new<String>)),
     [header(m.widths), space]
   )
   let bar = box("navbar bg-primary text-primary-content min-h-12 py-0", Map.new<String>, [
@@ -537,11 +527,29 @@ is_page_empty: is_page("") == true
 is_page_junk: is_page("/nope") == false
   refl
 
-edit_default: cell_get(0, 0, []) == "A1"
+edit_default: cell_get(0, 0, Map.new<String>) == "A1"
   refl
 
-edit_set: cell_get(0, 0, cell_set(0, 0, "hi", [])) == "hi"
+edit_set: cell_get(0, 0, cell_set(0, 0, "hi", Map.new<String>)) == "hi"
   refl
 
-edit_empty: cell_get(0, 0, cell_set(0, 0, "", [])) == ""
+edit_empty: cell_get(0, 0, cell_set(0, 0, "", Map.new<String>)) == ""
   refl
+
+bench.go(n: Nat, m: Map<String>): Map<String>
+  case n {
+    zero: m
+    succ: bench.go(n.pred, cell_set(n.pred, 0, "x", m))
+  }
+
+bench: IO<Unit>
+  IO {
+    get t0 = IO.get_time
+    let filled = bench.go(Nat.read("1000"), Map.new<String>)
+    let _g = cell_get(0, 0, filled)
+    let _w = window(Nat.mul(row_h, Nat.read("80")))
+    let _r = resize_w(def_w, 0, Nat.read("200"))
+    get t1 = IO.get_time
+    IO.print("excel-bench edits=1000 scroll=80 drag=200 ms=" | Nat.show(Nat.sub(t1, t0)))
+    return unit
+  }

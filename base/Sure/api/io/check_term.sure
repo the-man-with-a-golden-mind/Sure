@@ -10,7 +10,7 @@ Sure.api.io.check_term(name: String): IO<Unit>
         IO.print(notfound | "\n" | searched)
       some: IO {
         IO.print(Sure.Defs.report(defs.value, [name]))
-        Sure.Defs.cache(defs.value)
+        Sure.Defs.cache.names(defs.value, [name])
       }
     }
   }

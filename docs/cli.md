@@ -22,6 +22,7 @@ sure help env | cfg | ssr | ui | web
 | `sure build --html [Term]` | HTML page with inlined layout CSS |
 | `sure emit [Term]` | Same as `build` |
 | `sure run [Term]` | Emit `dist/<Term>.js` if needed, then spawn it |
+| `sure watch` | Re-check project theorems when `src/` changes |
 | `sure --bun run [Term]` | Run emitted JS with Bun |
 | `sure check <Term>` | Type-check one term (and project theorems) |
 | `sure Term` | Type-check one term |

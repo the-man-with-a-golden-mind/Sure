@@ -603,6 +603,7 @@ function print_help_topic(topic) {
     return;
   }
   if (t === "bun") {
+    console.log("The compiler defaults to Node. Emitted JS: Node, or Bun with --bun.");
     console.log("Emitted JS runs on Node or Bun. Empty and junk runtime names are node.");
     console.log("");
     console.log("  sure run Main");
@@ -877,6 +878,7 @@ function print_help_all() {
   console.log("  sure build --html [Term]     # emit dist/<Term>.html (Html.Client)");
   console.log("  sure emit [Term]             # same as build");
   console.log("  sure run [Term]              # emit dist/ if needed, then spawn");
+  console.log("  sure watch                   # re-check theorems on src change");
   console.log("  sure --bun run [Term]        # spawn emitted JS with Bun");
   console.log("  sure check <Term>            # type-check");
   console.log("  sure doc <Term>              # comment + type");
@@ -1037,6 +1039,11 @@ function named_def_source(name) {
 
 async function gate_residual_holes(name, report, code) {
   if (!report || report.ok === false) return report;
+  var cachedTerm = ((report.types || [])[0] || {}).term || "";
+  if (cachedTerm) {
+    if (shown_has_hole(cachedTerm)) return report_with_holes(report, name);
+    return report;
+  }
   if (code && src_explicit_hole(code)) return report_with_holes(report, name);
   var src = code || (name ? named_def_source(name) : "");
   if (src && src_explicit_hole(src)) return report_with_holes(report, name);
@@ -1152,6 +1159,12 @@ function report_failed(text) {
   return /Type mismatch|Undefined reference|Can't infer|Term not found|Compilation error|failed/i.test(text);
 }
 
+var workspace = require("./workspace")({
+  kind: kind,
+  array_to_list: array_to_list,
+  shown_has_hole: shown_has_hole
+});
+
 async function check_term(name, as_json) {
   var fn = as_json && checker("api.io.check_term_json")
     ? checker("api.io.check_term_json")
@@ -1170,41 +1183,66 @@ function check_output_ok(text) {
 }
 
 async function check_term_ok(name) {
-  var chunks = [];
-  var write = process.stdout.write;
-  process.stdout.write = function(chunk, enc, cb) {
-    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return write.call(process.stdout, chunk, enc, cb);
-  };
   try {
-    await kind.run(checker("api.io.check_term")(name));
-  } finally {
-    process.stdout.write = write;
+    var report = await workspace.check_names([name], {print: true});
+    if (!report || report.ok === false) {
+      console.log("prover fail: " + name);
+      return 1;
+    }
+    if (report.holes && report.holes.length) {
+      console.log("prover fail: " + name + " (residual hole)");
+      return 1;
+    }
+    var ty = ((report.types || [])[0] || {}).type || "";
+    var shown = ((report.types || [])[0] || {}).term || "";
+    if (shown && shown_has_hole(shown)) {
+      console.log("prover fail: " + name + " (residual hole)");
+      return 1;
+    }
+    if (is_proof_type(ty) && shown && shown_has_hole(shown)) {
+      console.log("prover fail: " + name + " (residual hole)");
+      return 1;
+    }
+    return 0;
+  } catch (e) {
+    var chunks = [];
+    var write = process.stdout.write;
+    process.stdout.write = function(chunk, enc, cb) {
+      chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+      return write.call(process.stdout, chunk, enc, cb);
+    };
+    try {
+      await kind.run(checker("api.io.check_term")(name));
+    } finally {
+      process.stdout.write = write;
+    }
+    var text = chunks.join("");
+    if (!check_output_ok(text)) {
+      console.log("prover fail: " + name);
+      return 1;
+    }
+    return 0;
   }
-  var text = chunks.join("");
-  if (!check_output_ok(text)) {
-    console.log("prover fail: " + name);
-    return 1;
-  }
-  var gated = await gate_residual_holes(name, {ok: true, types: [{name: name, type: ""}]}, null);
-  if (gated && gated.ok === false) {
-    console.log("prover fail: " + name + " (residual hole)");
-    return 1;
-  }
-  return 0;
 }
 
 async function check_prelude() {
   var failed = 0;
   var terms = BOUNDED_CHECKS.concat(BOUNDED_THEOREMS);
-  for (var i = 0; i < terms.length; i++) {
-    try {
-      failed += await check_term_ok(terms[i]);
-    } catch (e) {
-      console.log("prelude fail: " + terms[i]);
-      console.log(e);
-      failed += 1;
+  try {
+    var report = await workspace.check_names(terms, {print: true});
+    if (!report || report.ok === false) failed += 1;
+    if (report && report.holes && report.holes.length) failed += report.holes.length;
+  } catch (e) {
+    for (var i = 0; i < terms.length; i++) {
+      try {
+        failed += await check_term_ok(terms[i]);
+      } catch (e2) {
+        console.log("prelude fail: " + terms[i]);
+        console.log(e2);
+        failed += 1;
+      }
     }
+    return failed;
   }
   return failed;
 }
@@ -1215,12 +1253,38 @@ var _compiler_input_hash = null;
 function hash_kind_tree(h, root) {
   if (!root || !fs.existsSync(root)) return;
   var files = collect_kind_files(root).sort();
+  var meta = [];
   for (var i = 0; i < files.length; i++) {
-    h.update(path.relative(root, files[i]));
-    h.update("\0");
-    try { h.update(fs.readFileSync(files[i])); } catch (e) { h.update("missing"); }
-    h.update("\0");
+    try {
+      var st = fs.statSync(files[i]);
+      meta.push(path.relative(root, files[i]) + "\t" + st.size + "\t" + Math.floor(st.mtimeMs || st.mtime.getTime()));
+    } catch (e) {
+      meta.push(path.relative(root, files[i]) + "\t0\t0");
+    }
   }
+  var crypto = require("crypto");
+  var metaKey = crypto.createHash("sha256").update(meta.join("\n")).digest("hex");
+  var stamp = path.join(root, ".cache", "src.digest.json");
+  try {
+    var prev = JSON.parse(fs.readFileSync(stamp, "utf8"));
+    if (prev && prev.meta === metaKey && prev.digest) {
+      h.update(prev.digest);
+      return;
+    }
+  } catch (e2) {}
+  var inner = crypto.createHash("sha256");
+  for (var j = 0; j < files.length; j++) {
+    inner.update(path.relative(root, files[j]));
+    inner.update("\0");
+    try { inner.update(fs.readFileSync(files[j])); } catch (e3) { inner.update("missing"); }
+    inner.update("\0");
+  }
+  var digest = inner.digest("hex");
+  try {
+    fs.mkdirSync(path.join(root, ".cache"), {recursive: true});
+    fs.writeFileSync(stamp, JSON.stringify({meta: metaKey, digest: digest}) + "\n");
+  } catch (e4) {}
+  h.update(digest);
 }
 
 function file_fingerprint(p) {
@@ -2523,6 +2587,7 @@ var agent = require("./agent")({
   prove_result: function(n, r) { return prove_result(n, r); },
   scan_project_holes: function() { return scan_project_holes(); },
   scan_symbols: function(p) { return scan_symbols(p); },
+  workspace: workspace,
   scan_references: function(n) { return scan_references(n); },
   scan_impact: function(n) { return scan_impact(n); },
   scan_theorems: function(n) { return scan_theorems(n); },
@@ -2624,6 +2689,7 @@ var qc_arg_lists = qc.qc_arg_lists;
 
 var commands = require("./commands")({
   ORIG_CWD: ORIG_CWD,
+  workspace: workspace,
   agent_check_code: function(a) { return agent_check_code(a); },
   agent_check_name: function(a) { return agent_check_name(a); },
   agent_dispatch: function(a, b) { return agent_dispatch(a, b); },
@@ -2959,7 +3025,7 @@ function spawn_term_run(term) {
 
 (async () => {
   var argv = process.argv.slice(2).filter(function(a) { return a !== "--bun" && a !== "--node"; });
-  var use_bun = (process.argv.indexOf("--bun") >= 0 || process.env.SURE_RUNTIME === "bun" || bun_native())
+  var use_bun = (process.argv.indexOf("--bun") >= 0 || process.env.SURE_RUNTIME === "bun")
     && process.argv.indexOf("--node") < 0 && process.env.SURE_RUNTIME !== "node";
   var name = argv[0];
   var flag = argv[1];
@@ -3257,6 +3323,35 @@ function spawn_term_run(term) {
     return;
   }
 
+  if (name === "watch") {
+    apply_project_env();
+    var manW = find_manifest(ORIG_CWD);
+    var rootW = manW ? path.dirname(manW) : ORIG_CWD;
+    var srcW = manW ? (man_src_dirs(read_manifest(manW), rootW)[0] || rootW) : rootW;
+    var termsW = default_prove_names();
+    async function tick() {
+      workspace.reset();
+      console.log("watch check " + termsW.join(" "));
+      try {
+        var r = await workspace.check_names(termsW, {print: true});
+        console.log(r && r.ok === false ? "watch fail" : "watch ok");
+      } catch (e) {
+        console.log("watch error " + e);
+      }
+    }
+    await tick();
+    try {
+      fs.watch(srcW, {recursive: true}, function() {
+        clearTimeout(tick._t);
+        tick._t = setTimeout(function() { tick(); }, 200);
+      });
+    } catch (eW) {
+      console.error("sure watch: " + eW);
+      process.exit(1);
+    }
+    console.log("watching " + srcW);
+    return;
+  }
   if (name === "help") {
     print_help_topic(argv[1] || "start");
     process.exit(0);

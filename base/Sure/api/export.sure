@@ -7,6 +7,7 @@ Sure.api.export: IO<Unit>
     let e = Sure.api.io.check_files
     let e = Sure.api.io.check_term
     let e = Sure.api.io.check_term_json
+    let e = Sure.api.io.check_terms_json
     let e = Sure.api.io.check_code
     let e = Sure.api.io.check_code_json
     let e = Sure.api.io.show_term

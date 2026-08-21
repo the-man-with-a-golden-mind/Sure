@@ -1,6 +1,6 @@
 #!/bin/sh
 # Repo-local and globally-linked Sure CLI. `bin/kind` is the same entry point.
-# Bun is the default when it is on PATH. Node 18+: SURE_RUNTIME=node or --node.
+# Node 18+ is the compiler default. Emitted JS: --bun or SURE_RUNTIME=bun.
 SELF="$0"
 while [ -L "$SELF" ]; do
   DIR="$(CDPATH= cd -- "$(dirname "$SELF")" && pwd)"
@@ -18,12 +18,12 @@ if [ -z "$SURE_BASE" ] && [ -z "$KIND_BASE" ] && [ -f "$ROOT/base/Nat.sure" ]; t
   KIND_BASE="$SURE_BASE"
   export KIND_BASE
 fi
-want_node=0
-[ "$SURE_RUNTIME" = "node" ] && want_node=1
+want_bun=0
+[ "$SURE_RUNTIME" = "bun" ] && want_bun=1
 for a in "$@"; do
-  [ "$a" = "--node" ] && want_node=1
+  [ "$a" = "--bun" ] && want_bun=1
 done
-if [ "$want_node" != 1 ] && command -v bun >/dev/null 2>&1; then
+if [ "$want_bun" = 1 ] && command -v bun >/dev/null 2>&1; then
   exec bun "$MAIN" "$@"
 fi
 node_ok() {

@@ -8,7 +8,7 @@ Sure.api.io.check_term_json(name: String): IO<Unit>
           | Sure.Json.string(name) | ",\"message\":" | Sure.Json.string(notfound) | "}}]}")
       some: IO {
         IO.print(Sure.Defs.report_json(defs.value, [name]))
-        Sure.Defs.cache(defs.value)
+        Sure.Defs.cache.names(defs.value, [name])
       }
     }
   }

@@ -1,4 +1,5 @@
 **/node_modules
+bin/js/bun.lock
 scripts/
 *.class
 .DS_Store

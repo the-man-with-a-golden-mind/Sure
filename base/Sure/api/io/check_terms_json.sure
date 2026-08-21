@@ -1,0 +1,7 @@
+// Load the project once, check every name, write only those defs to disk.
+Sure.api.io.check_terms_json(names: List<String>): IO<Unit>
+  IO {
+    get defs = Sure.Synth.many(names, Sure.Map.new!)
+    IO.print(Sure.Defs.report_json(defs, names))
+    Sure.Defs.cache.names(defs, names)
+  }

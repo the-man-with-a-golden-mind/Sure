@@ -1,0 +1,20 @@
+Sure.Defs.cache.names(defs: Sure.Defs, names: List<Sure.Name>): IO<Unit>
+  case names {
+    nil: IO {
+      return unit
+    }
+    cons: IO {
+      case Sure.Map.get!(names.head, defs) as got {
+        none: Sure.Defs.cache.names(defs, names.tail)
+        some:
+          let defn = got.value
+          open defn
+          case defn.stat {
+            done: IO {
+              Sure.Synth.load.cached.put(names.head, defn)
+              Sure.Defs.cache.names(defs, names.tail)
+            }
+          } default Sure.Defs.cache.names(defs, names.tail)
+      }
+    }
+  }

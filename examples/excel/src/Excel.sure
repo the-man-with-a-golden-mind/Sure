@@ -248,7 +248,7 @@ row_view(idx: Nat, ws: List<Nat>, cells: Map<String>): DOM
   let wide = Nat.add(num_w, sum(ws))
   box_st(
     "flex h-6",
-    Html.attr("data-sure-row", Nat.show(idx), Map.new<String>),
+    Html.attr("data-sure-row", Nat.show(idx), Html.attr("data-sure-key", "row-" | Nat.show(idx), Map.new<String>)),
     Map.set<String>("position", "absolute", Map.set<String>("left", "0", px("top", top, px("width", wide, Map.new<String>)))),
     List.cons<DOM>(num_cell(Nat.show(Nat.succ(idx))), body_cells.go(idx, 0, ws, cells))
   )

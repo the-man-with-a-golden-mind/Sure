@@ -31,6 +31,10 @@ The language is Sure. Lineage is Legacy Kind 1.0.121.
 8. [CLI](cli.md) — every command
 9. [Style](style.md) — how Sure is written
 
+## Roadmap
+
+- [ReScript and performance plan](rescript-performance-plan.md) — staged compiler/framework optimization and incremental tooling migration
+
 ## Also in the tree
 
 | File | What it is |

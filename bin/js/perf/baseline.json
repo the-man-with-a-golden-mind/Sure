@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "note": "Milestone 0 reference. Headline numbers are median/p95, never the fastest sample. Replace after ten stable CI samples with median + 15%.",
+  "ceilings": {
+    "cli.help.p95_ms": 350,
+    "hello.warm_run_ms": 1200,
+    "Excel.client.check_ms": 46000,
+    "suite_ms": 130000,
+    "noop_cache_rewrites": 0,
+    "discovery_ms": 100,
+    "warm_noop_build_ms": 750
+  },
+  "historical": {
+    "warm_cli_s": [0.18, 0.33],
+    "hello_cold_run_s": 3.21,
+    "hello_warm_run_s": 1.17,
+    "Excel.client_check_s": 45.95,
+    "full_node_suite_s": 129.79
+  }
+}

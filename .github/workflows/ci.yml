@@ -37,8 +37,49 @@ jobs:
       - name: Fmt uses source, not show_term
         run: |
           node --stack-size=10000 bin/js/src/main.js fmt examples/hello/src/Hello.sure | grep -q 'module Hello'
+      - name: Tooling units (cache, protocol, scheduler, patch)
+        run: node bin/js/test-units.js
       - name: Bounded test
         run: node --stack-size=10000 bin/js/src/main.js test
+      - name: UI page harness
+        run: node bin/js/test-ui-pages.js
       - name: Test.main (Test.ci.suite + Test.host)
         timeout-minutes: 3
         run: node --stack-size=10000 bin/js/src/main.js Test.main --run
+
+  perf:
+    runs-on: ubuntu-latest
+    needs: js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install JS CLI deps
+        run: npm install --omit=dev --prefix bin/js
+      - name: Performance quick matrix
+        run: SURE_PERF_QUICK=1 node bin/js/perf/run.js --quick
+      - name: Upload perf artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sure-perf
+          path: bin/js/perf/last.json
+
+  bun-emit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install JS CLI deps
+        run: npm install --omit=dev --prefix bin/js
+      - name: Emitted hello on Bun
+        working-directory: examples/hello
+        run: |
+          node --stack-size=10000 ../../bin/js/src/main.js prove
+          node --stack-size=10000 ../../bin/js/src/main.js build
+          bun dist/Main.js

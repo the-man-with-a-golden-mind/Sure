@@ -8,7 +8,7 @@ Three layers, one language:
 | `Sure.Ui` | Elm-like: `sandbox` or `element` with `Cmd` / `Sub` | `sure build --html Sure.Ui.Tick.client` |
 | `Sure.Ssr` | Server HTML, SSE, routes | `sure run` a `*.serve` term |
 
-Open the HTML file in a browser. Clicks and input call `step` in the page. Generated HTML inlines a small layout stylesheet; it does not load Tailwind or daisyUI. The **examples** (`excel`, `todo`, `ui`, `tweeter`, `ssr`, `files`, `walk`) load Tailwind + daisyUI in their own `document()`. `w-[Npx]` / `h-[Npx]` / `top-[Npx]` are applied after each draw.
+Open the HTML file in a browser. Clicks and input call `step` in the page. Updates patch the live tree (`data-sure-key` / scroll / input nodes are reused). Unchanged HTML is skipped. Scroll and pointer-move coalesce to one frame; click/submit/keys apply immediately. Generated HTML inlines a small layout stylesheet and serializes `w-[Npx]` classes to CSS units; it does not load Tailwind or daisyUI. The **examples** (`excel`, `todo`, `ui`, `tweeter`, `ssr`, `files`, `walk`) load Tailwind + daisyUI in their own `document()`. `applyPx` remains only as a compatibility fallback.
 
 ## Bench
 

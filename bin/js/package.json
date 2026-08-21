@@ -5,7 +5,13 @@
   "description": "Sure — a fork of Legacy Kind",
   "main": "src/sure.js",
   "scripts": {
-    "test": "node --stack-size=10000 src/main.js test && node src/gen-host.js --check && node ../../bootstrap.js --check"
+    "test": "node test-units.js && node test-lsp-identity.js && node --stack-size=10000 src/main.js test && node test-ui-pages.js && node src/gen-host.js --check && node ../../bootstrap.js --check",
+    "test:units": "node test-units.js && node test-lsp-identity.js",
+    "test:ui": "node test-ui-pages.js",
+    "perf": "node perf/run.js --quick",
+    "perf:full": "node perf/run.js",
+    "rescript": "rescript",
+    "rescript:check": "rescript build && git diff --exit-code -- src/*.res.js"
   },
   "bin": {
     "sure": "src/main.js",
@@ -27,5 +33,8 @@
   "homepage": "https://github.com/the-man-with-a-golden-mind/Sure#readme",
   "dependencies": {
     "formcore-js": "file:../../vendor/formcore-js"
+  },
+  "devDependencies": {
+    "rescript": "11.1.4"
   }
 }

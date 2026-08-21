@@ -45,6 +45,25 @@ var PKG = (function() {
 })();
 var SURE_VERSION = PKG.version;
 var KIND_LINEAGE = "1.0.121";
+var cli_debug = require("./cli_debug");
+var sure_debug_level_read = cli_debug.sure_debug_level_read;
+var sure_debug_flags_read = cli_debug.sure_debug_flags_read;
+var sure_debug_flags_any = cli_debug.sure_debug_flags_any;
+var sure_debug_flags_show = cli_debug.sure_debug_flags_show;
+var sure_debug_flags_host = cli_debug.sure_debug_flags_host;
+var sure_debug_open = cli_debug.sure_debug_open;
+var sure_debug_level_rank = cli_debug.sure_debug_level_rank;
+var sure_debug_at_least = cli_debug.sure_debug_at_least;
+var sure_debug_emit = cli_debug.sure_debug_emit;
+var sure_debug_host_ask = cli_debug.sure_debug_host_ask;
+var sure_debug_redact = cli_debug.sure_debug_redact;
+var sure_debug_host_line = cli_debug.sure_debug_host_line;
+var parse_debug_arg = cli_debug.parse_debug_arg;
+var cli_help = require("./cli_help")({SURE_VERSION: SURE_VERSION, KIND_LINEAGE: KIND_LINEAGE});
+var sure_help_topic = cli_help.sure_help_topic;
+var print_help = cli_help.print_help;
+var print_help_topic = cli_help.print_help_topic;
+var print_help_all = cli_help.print_help_all;
 var ADD_PATH = "";
 var ORIG_CWD = process.cwd();
 var STDLIB_BASE = null;
@@ -359,558 +378,6 @@ function array_to_list(arr) {
   return list;
 }
 
-function sure_help_topic(s) {
-  s = String(s || "").trim();
-  if (!s || s === "help") return "start";
-  if (s === "start" || s === "all" || s === "prove" || s === "json" || s === "html" || s === "emit" || s === "ffi" || s === "gen" || s === "pkg" || s === "bun" || s === "worker" || s === "db" || s === "debug" || s === "lsp" || s === "pipe" || s === "time" || s === "cli" || s === "log" || s === "repl" || s === "test" || s === "cover" || s === "env" || s === "cfg" || s === "ssr" || s === "ui" || s === "web") return s;
-  return null;
-}
-
-function sure_debug_level_read(s) {
-  s = String(s == null ? "" : s);
-  if (s === "off") return "off";
-  if (s === "error") return "error";
-  if (s === "info") return "info";
-  if (s === "trace" || s === "debug" || s === "1" || s === "true") return "trace";
-  return "";
-}
-
-function sure_debug_flags_read(s) {
-  var xs = String(s == null ? "" : s).split(/[,\s]+/).filter(Boolean);
-  var all = xs.indexOf("all") >= 0;
-  return {
-    host: all || xs.indexOf("host") >= 0,
-    term: all || xs.indexOf("term") >= 0,
-    holes: all || xs.indexOf("holes") >= 0,
-    qc: all || xs.indexOf("qc") >= 0
-  };
-}
-
-function sure_debug_flags_any(f) {
-  return !!(f && (f.host || f.term || f.holes || f.qc));
-}
-
-function sure_debug_flags_show(f) {
-  f = f || sure_debug_flags_read("");
-  if (f.host && f.term && f.holes && f.qc) return "all";
-  var xs = [];
-  if (f.host) xs.push("host");
-  if (f.term) xs.push("term");
-  if (f.holes) xs.push("holes");
-  if (f.qc) xs.push("qc");
-  return xs.join(" ");
-}
-
-function sure_debug_flags_host(s) {
-  return sure_debug_flags_read(s).host;
-}
-
-function sure_debug_open(opt, ch) {
-  var f = typeof opt === "string" ? sure_debug_flags_read(opt) : (opt || sure_debug_flags_read(""));
-  if (!sure_debug_flags_any(f)) return true;
-  return !!f[ch];
-}
-
-function sure_debug_level_rank(l) {
-  if (l === "error") return 1;
-  if (l === "info") return 2;
-  if (l === "trace") return 3;
-  return 0;
-}
-
-function sure_debug_at_least(have, need) {
-  return sure_debug_level_rank(have) >= sure_debug_level_rank(need);
-}
-
-function sure_debug_emit(have, need, opt, ch) {
-  return sure_debug_at_least(have, need) && sure_debug_open(opt, ch);
-}
-
-function sure_debug_host_ask(level, opt, query) {
-  if (!sure_debug_open(opt, "host")) return false;
-  if (String(query) === "yield") return sure_debug_at_least(level, "trace");
-  return sure_debug_at_least(level, "info") || sure_debug_flags_read(opt).host;
-}
-
-function sure_debug_redact(s) {
-  s = String(s == null ? "" : s);
-  var nl = s.indexOf("\n");
-  var line = nl < 0 ? s : s.slice(0, nl);
-  if (line.length > 80) return line.slice(0, 80) + "...";
-  if (line.length < s.length) return line + "...";
-  return line;
-}
-
-function sure_debug_host_line(query, param, reply) {
-  var q = String(query || "");
-  var p = sure_debug_redact(param == null ? "" : param);
-  var r = sure_debug_redact(reply == null ? "" : reply);
-  if (!q) return "host ? " + p + " -> " + r;
-  return "host " + q + " " + p + " -> " + r;
-}
-
-function parse_debug_arg(raw) {
-  if (raw === undefined || raw === true) return "trace";
-  var lv = sure_debug_level_read(String(raw));
-  return lv || null;
-}
-
-function print_help() {
-  print_help_topic("start");
-}
-
-function print_help_topic(topic) {
-  var t = sure_help_topic(topic);
-  if (!t) {
-    console.error("unknown help topic: " + topic);
-    console.error("try: sure help start | prove | json | html | emit | ffi | gen | pkg | bun | worker | db | debug | lsp | pipe | time | cli | log | repl | test | cover | env | cfg | ssr | ui | web | all");
-    process.exit(1);
-  }
-  if (t === "start") {
-    console.log("# Sure " + SURE_VERSION);
-    console.log("");
-    console.log("Write .sure files. The type checker proves them. Then you emit JavaScript.");
-    console.log("");
-    console.log("Usage: sure <command> [Term...]");
-    console.log("");
-    console.log("  sure new myapp              # scaffold");
-    console.log("  sure new --package ada/boxes");
-    console.log("  cd myapp");
-    console.log("  sure prove                  # theorems must check");
-    console.log("  sure gen JSON.dec.bool      # tests and proofs from the type");
-    console.log("  sure build                  # writes dist/Main.js");
-    console.log("  sure run                    # emit dist/ if needed, then spawn");
-    console.log("");
-    console.log("  sure build --html Html.Counter.client");
-    console.log("                          # open dist/Html.Counter.client.html");
-    console.log("");
-    console.log("  sure help prove         # equalities are proofs");
-    console.log("  sure help json          # JSON.enc / JSON.dec");
-    console.log("  sure help html          # pages in the browser");
-    console.log("  sure help emit          # dist/ artifacts");
-    console.log("  sure help ffi           # call JS/TS (JSON in, JSON out)");
-    console.log("  sure help gen           # tests and proofs from types");
-    console.log("  sure help pkg           # modules and packages");
-    console.log("  sure help bun           # Node and Bun");
-    console.log("  sure help worker        # off-thread JSON jobs");
-    console.log("  sure help db            # memory and file stores");
-    console.log("  sure help debug         # levels, channels, sure debug");
-    console.log("  sure help lsp           # language server and VS Code");
-    console.log("  sure help pipe          # list and CSV pipelines");
-    console.log("  sure help time          # stamps, durations, ISO-8601");
-    console.log("  sure help cli           # program flags");
-    console.log("  sure help log           # application log lines");
-    console.log("  sure help repl          # interactive checker");
-    console.log("  sure help test          # sure test");
-    console.log("  sure help env           # process environment");
-    console.log("  sure help cfg           # JSON config");
-    console.log("  sure help ssr           # HTML pages, SSE, Db.Dsl, migrations");
-    console.log("  sure help ui            # Elm-like pages in the browser");
-    console.log("  sure help web           # timed Html / Ui / Ssr / Sheet bench");
-    console.log("  sure help all           # every flag");
-    return;
-  }
-  if (t === "prove") {
-    console.log("A well-typed `a == b` term is a proof. The type checker is the prover.");
-    console.log("");
-    console.log("  Spec.add2: Nat.add(2, 2) == 4");
-    console.log("    refl");
-    console.log("");
-    console.log("  sure prove              # listed theorems + src equalities");
-    console.log("  sure prove Spec.add2    # one theorem");
-    console.log("  sure goal Term          # remaining ?implement holes");
-    console.log("  sure qc Nat.add.comm    # sample a lemma at generated values");
-    console.log("");
-    console.log("when { pred: val ... } default rest  # first true predicate; not case");
-    console.log("String.ok(s, [\" \", \"\\n\"])         # nonempty and none of those substrings");
-    console.log("");
-    console.log("Unproved equalities fail the build. They are not emitted.");
-    return;
-  }
-  if (t === "json") {
-    console.log("JSON.enc turns a value into JSON. JSON.dec reads it back (none on junk).");
-    console.log("");
-    console.log("  JSON.enc.bool(true)           JSON.dec.bool(j)");
-    console.log("  JSON.enc.nat(0)               JSON.dec.nat(j)     # digit string only");
-    console.log("  JSON.enc.string(\"hi\")         JSON.dec.string(j)");
-    console.log("  JSON.enc.list(enc, xs)        JSON.dec.list(dec, j)");
-    console.log("  JSON.get(j, \"name\")           # none if missing");
-    console.log("");
-    console.log("\"\", \"abc\", and \"12x\" are not nats. A bool is not a nat.");
-    console.log("sure doc JSON.enc.bool");
-    return;
-  }
-  if (t === "html") {
-    console.log("Html.App is init / view / update. Html.Client is what the browser runs.");
-    console.log("Sure.Ui is the Elm-like layer: sandbox (no effects) and element (Cmd + Sub).");
-    console.log("");
-    console.log("  Html.button(\"inc\", [Html.text(\"+1\")])");
-    console.log("  Html.input(value, \"set\")");
-    console.log("  Html.Counter.client   # click");
-    console.log("  Html.Echo.client      # input + click");
-    console.log("  Sure.Ui.Counter.client");
-    console.log("  Sure.Ui.Tick.client   # Sub.every");
-    console.log("  Sure.Ui.Probe.client  # Cmd + Sub edges");
-    console.log("  Sure.Ui.Boot.client   # boot Cmd");
-    console.log("  Sure.Sheet.client     # Excel grid, virtual scroll, 10000 SSE rows");
-    console.log("  Sure.Tweeter.client   # login, session, tweets, file upload");
-    console.log("");
-    console.log("  sure build --html Html.Counter.client");
-    console.log("  sure build --html Sure.Ui.Tick.client");
-    console.log("  sure build --html Sure.Sheet.client");
-    console.log("  sure run Sure.Sheet.serve");
-    console.log("  sure build --html Sure.Tweeter.client");
-    console.log("  sure run Sure.Tweeter.serve");
-    console.log("  open dist/Html.Counter.client.html");
-    console.log("");
-    console.log("Html.el(tag, ...) and Html.on(ev, ...) take String names, not Html.Tag / Html.Event.");
-    console.log("Every Html.Event is listened. Clicks/input call step in the page.");
-    console.log("sure help ui");
-    return;
-  }
-  if (t === "gen") {
-    console.log("The compiler generates tests and proofs from types. case is exhaustive.");
-    console.log("There is no null and no throw in Sure: Maybe, Outcome, Ffi.Err, Empty.");
-    console.log("");
-    console.log("  sure gen JSON.dec.bool     # junk JSON must type-check; none is a proof");
-    console.log("  sure gen Bool.not          # true/false apps; == proofs");
-    console.log("  sure gen Nat.add.comm      # QuickCheck the lemma");
-    console.log("");
-    console.log("Empty name and a missing term fail. A generated app that does not check fails.");
-    return;
-  }
-  if (t === "pkg") {
-    console.log("A .sure file is a module. Names inside are unqualified.");
-    console.log("Outside they are Foo.bar. Lookup: Foo.sure, then Foo/bar.sure.");
-    console.log("");
-    console.log("  module Foo exposing (bar, Baz)   # only these names are public");
-    console.log("  import Bar                       # use Bar.foo");
-    console.log("  import Bar exposing (foo)        # use foo");
-    console.log("  import Bar exposing (..)         # every name Bar exposes");
-    console.log("");
-    console.log("A library is a package with one or more modules under src/.");
-    console.log("A package lists exposed-modules. Dependents cannot use the rest.");
-    console.log("stdlib names (Nat.add) are always in scope. Empty names are not modules.");
-    console.log("");
-    console.log("  sure new myapp");
-    console.log("  sure new --package ada/boxes");
-    console.log("  sure add ../lib            # local path");
-    console.log("  sure add ada/boxes         # git https://github.com/ada/boxes.git");
-    console.log("  sure expose Boxes          # packages only");
-    console.log("  sure install               # from sure.lock");
-    console.log("");
-    console.log("sure.json type is application or package. sure.lock pins versions.");
-    return;
-  }
-  if (t === "bun") {
-    console.log("The compiler defaults to Node. Emitted JS: Node, or Bun with --bun.");
-    console.log("Emitted JS runs on Node or Bun. Empty and junk runtime names are node.");
-    console.log("");
-    console.log("  sure run Main");
-    console.log("  sure --bun run Main");
-    console.log("  SURE_RUNTIME=bun sure run Main");
-    console.log("  bun bin/js/src/main.js run Main");
-    console.log("");
-    console.log("http_listen uses Bun.serve when Bun is defined, else Node http.");
-    console.log("sure --bun with no bun on PATH fails.");
-    return;
-  }
-  if (t === "worker") {
-    console.log("Run a named JSON job off the main thread. Node uses worker_threads; Bun uses Worker.");
-    console.log("");
-    console.log("  Worker.run(\"Sure.ffi.add\", JSON.enc.list<Nat>(JSON.enc.nat, [2, 3]))");
-    console.log("  Worker.run_nat(\"Sure.worker.double\", [21])");
-    console.log("  Worker.map(\"Sure.worker.double\", [JSON.enc.nat(1), JSON.enc.nat(2)])");
-    console.log("");
-    console.log("The worker sees Math.* and Sure.ffi.add / Sure.worker.double, not main-thread objects.");
-    console.log("Empty name, a/b, missing function, bad JSON, and throws are Worker.Err.");
-    console.log("An empty map is ok([]) and does not spawn a thread.");
-    console.log("sure doc Worker.run");
-    return;
-  }
-  if (t === "db") {
-    console.log("A store is a named map. Values are strings. Empty keys are not keys.");
-    console.log("");
-    console.log("  Db.connect(\"suremem:app\")     # process memory");
-    console.log("  Db.connect(\"surefile:app.json\") # JSON file");
-    console.log("  Db.set / get / has / del / keys / clear");
-    console.log("  Db.with(\"suremem:t\", (c) ... ) # close after use");
-    console.log("");
-    console.log("Query text is GET/SET/DEL/HAS/KEYS/CLEAR. Empty and junk queries are none.");
-    console.log("A key may not be empty or contain a newline. A corrupt JSON file is bad_file, not {}.");
-    console.log("postgres:// is not a store (no partial backend).");
-    console.log("sure doc Db.connect");
-    return;
-  }
-  if (t === "debug") {
-    console.log("Debug levels: off | error | info | trace. Empty and junk names are none.");
-    console.log("Channels: host | term | holes | qc | all. Junk tokens are ignored.");
-    console.log("An empty --debug-opt opens every channel. A set opt keeps only those channels.");
-    console.log("");
-    console.log("  sure debug Nat.add                 # type, holes, traces");
-    console.log("  sure debug Nat.add --norm --json");
-    console.log("  sure prove --debug                 # same as --debug=trace");
-    console.log("  sure prove --debug=info --debug-opt=term,holes");
-    console.log("  sure qc Nat.add.comm --debug --debug-opt=qc");
-    console.log("  sure run --debug --debug-opt=host  # stderr host asks");
-    console.log("  SURE_DEBUG=trace SURE_DEBUG_OPT=host,qc");
-    console.log("");
-    console.log("Host asks log to stderr. yield is logged only at trace.");
-    console.log("Params and replies redact after 80 chars and after a newline.");
-    console.log("sure debug with no name, a missing term, and --debug=junk all exit 1.");
-    console.log("sure doc Sure.Debug.Level");
-    return;
-  }
-  if (t === "lsp") {
-    console.log("sure lsp is a stdio Language Server. Empty methods and empty URIs are none.");
-    console.log("");
-    console.log("  sure lsp");
-    console.log("  VS Code: editors/vscode (language sure, files *.sure)");
-    console.log("");
-    console.log("initialize, hover, definition, completion, format, rename,");
-    console.log("references, document symbols, highlight, workspace symbols, code actions.");
-    console.log("Hover, definition, symbols, and rename walk Sure.Defs.read / Sure.Term");
-    console.log("(ori/ref) and Sure.Term.show. Binders still use compiler.ident_bindings.");
-    console.log("Strings and comments are not identifiers.");
-    console.log("didOpen / didChange / didClose / didSave publish diagnostics.");
-    console.log("Junk methods with an id are Method not found. Parse errors are -32700.");
-    console.log("sure help debug");
-    return;
-  }
-  if (t === "pipe") {
-    console.log("Finite list pipelines and CSV tables. Empty input is empty output.");
-    console.log("");
-    console.log("  Sure.Pipe.map / filter / bind / take / drop / zip / scan");
-    console.log("  Sure.Pipe.range / once / from_maybe / replicate");
-    console.log("  Sure.Pipe.decode Parse.nat  # junk strings are dropped, never 0");
-    console.log("  Sure.Pipe.chunks(0, xs) == []   Sure.Pipe.windows(0, xs) == []");
-    console.log("  Sure.Csv.read / show / col / nats");
-    console.log("");
-    console.log("Empty CSV is no rows. Unclosed quotes still yield a field.");
-    console.log("sure doc Sure.Pipe.map");
-    return;
-  }
-  if (t === "time") {
-    console.log("Unix-epoch milliseconds. Years before 1970 and impossible dates are none.");
-    console.log("");
-    console.log("  Time.now                         # IO Stamp");
-    console.log("  Time.read(\"1970-01-01T00:00:00Z\")");
-    console.log("  Time.Duration.read(\"1s\")          # empty and junk are none");
-    console.log("  Time.from_parts / Time.to_parts / Time.iso");
-    console.log("");
-    console.log("Duration units: ms, s, m, h, d. A bare number is milliseconds.");
-    console.log("Time.div(n, 0) is 0. Time.mod(n, 0) is n.");
-    console.log("sure doc Time.now");
-    return;
-  }
-  if (t === "cli") {
-    console.log("Program flags after --run. `--name` and `--name=value`. Empty names are not flags.");
-    console.log("");
-    console.log("  Sure.Cli.load");
-    console.log("  Sure.Cli.parse([\"--n=8\", \"file\"])");
-    console.log("  Sure.Cli.flag(c, \"n\")   # present?");
-    console.log("  Sure.Cli.get(c, \"n\")    # some(\"8\")");
-    console.log("");
-    console.log("`--` ends flags. A token that is not a flag is rest.");
-    console.log("sure doc Sure.Cli.parse");
-    return;
-  }
-  if (t === "log") {
-    console.log("Application log lines. off emits nothing. Empty tag is allowed.");
-    console.log("");
-    console.log("  Sure.Log.put(have, Sure.Debug.Level.info, \"db\", \"ok\")");
-    console.log("  Sure.Log.format(have, need, tag, msg)  # none when below need");
-    console.log("");
-    console.log("Levels are Sure.Debug.Level: off | error | info | trace.");
-    console.log("sure doc Sure.Log.put");
-    return;
-  }
-  if (t === "repl") {
-    console.log("Interactive checker. Empty line is ignored. Junk commands are none.");
-    console.log("");
-    console.log("  sure repl");
-    console.log("  :help :quit :check :prove :type :goal :fill :debug :norm :run :docs");
-    console.log("");
-    console.log(":check with no name fails. :xyz is not a command.");
-    console.log("sure help test");
-    return;
-  }
-  if (t === "test") {
-    console.log("Bounded CI: prover list, checks, Main, Test.main, prove-edge cases.");
-    console.log("");
-    console.log("  sure test");
-    console.log("  sure --test");
-    console.log("  sure Test.main --run     # Test.ci.suite then Test.host");
-    console.log("  sure Test.full --run     # unbounded Test.suite (not CI)");
-    console.log("");
-    console.log("A failing test or a false equality exits 1. Prove.all is not CI.");
-    console.log("sure help cover");
-    return;
-  }
-  if (t === "cover") {
-    console.log("Public API coverage vs lemmas and Test.suite. Need 90%.");
-    console.log("");
-    console.log("  sure cover");
-    console.log("  sure cover --fail");
-    console.log("");
-    console.log("Empty, junk, and missing cases count. Kind internals and parked numeric clones do not.");
-    console.log("sure help test");
-    return;
-  }
-  if (t === "env") {
-    console.log("Process environment. Empty names are not names. Empty values are values.");
-    console.log("");
-    console.log("  Sure.Env.get(\"PATH\")");
-    console.log("  Sure.Env.get_or(\"PORT\", \"80\")");
-    console.log("  Sure.Env.nat(\"N\")     # junk is junk, not 0");
-    console.log("  Sure.Env.bool(\"OK\")   # only true/false");
-    console.log("  Sure.Env.flag(\"X\")    # missing/empty/0/false/off/no are false");
-    console.log("  Sure.Env.set / del / has / keys");
-    console.log("");
-    console.log("An unset name is missing. \"\" as a value is some(\"\"), not missing.");
-    console.log("sure doc Sure.Env.get");
-    return;
-  }
-  if (t === "cfg") {
-    console.log("JSON object config. Empty or whitespace is {}. Junk, leftover, and a non-object are none.");
-    console.log("");
-    console.log("  Sure.Cfg.read(\"{\\\"n\\\":\\\"8\\\"}\")");
-    console.log("  Sure.Cfg.get / str / nat / bool / flag / has / set / del / overlay");
-    console.log("  Sure.Cfg.get_or(c, \"PORT\", \"80\")");
-    console.log("  Sure.Cfg.from_cli(c)     # --name is true; --name=value; last wins");
-    console.log("  Sure.Cfg.from_env([\"PORT\"])");
-    console.log("  Sure.Cfg.pick(file, env, cli)  # cli wins; objects merge deep");
-    console.log("  Sure.Cfg.load(\"app.json\")     # empty path is empty_path");
-    console.log("");
-    console.log("Missing file is missing. load_or_empty turns only missing into {}.");
-    console.log("nat accepts digit strings; bool accepts true/false/0/1. Empty keys are not keys.");
-    console.log("sure doc Sure.Cfg.read");
-    return;
-  }
-  if (t === "ssr") {
-    console.log("Server HTML pages, SSE, a KV DSL, and migrations. Empty names are not names.");
-    console.log("");
-    console.log("  Sure.Ssr.ok(\"T\", Html.p([Html.text(\"hi\")]))");
-    console.log("  Sure.Ssr.get(\"/\", (req, b) IO { return Sure.Ssr.from_page(Sure.Ssr.ok(\"T\", Html.p([]))) })");
-    console.log("  Sure.Ssr.Reply.sse(\"ticks\")     # empty bus is empty_bus");
-    console.log("  Sure.Sse.frame(\"\", \"hi\")        # empty event is message");
-    console.log("  Db.Dsl.read(\"ROW SET user 1 {}\")");
-    console.log("  Db.Mig.up(conn, [step])         # re-run applies 0");
-    console.log("");
-    console.log("Leftover JSON is not config. Missing mig log is no steps. No SSE clients is 0.");
-    console.log("sure doc Sure.Ssr.run");
-    return;
-  }
-  if (t === "ui") {
-    console.log("Elm-like pages. sandbox has no effects. element has Cmd and Sub.");
-    console.log("");
-    console.log("  Sure.Ui.sandbox(init, view, update)");
-    console.log("  Sure.Ui.element(init, boot, view, update, subs)");
-    console.log("  Sure.Ui.Cmd.none | http url msg | post url body msg | tick ms msg | push msg | batch");
-    console.log("  Sure.Ui.Sub.none | every ms msg | sse path msg | batch");
-    console.log("");
-    console.log("Empty Cmd text is none. Empty HTTP URL is not a request. every(0) is none.");
-    console.log("Empty SSE path is none. Unknown messages leave the model.");
-    console.log("  sure build --html Sure.Ui.Counter.client");
-    console.log("  sure build --html Sure.Ui.Tick.client");
-    console.log("  sure build --html Sure.Ui.Probe.client");
-    console.log("  sure build --html Sure.Ui.Boot.client");
-    console.log("  sure build --html Sure.Sheet.client");
-    console.log("  sure run Sure.Sheet.serve          # :8765 HTML + SSE 10000 rows");
-    console.log("  Column names and widths save to surefile:sheet-cols.json");
-    console.log("  sure build --html Sure.Tweeter.client");
-    console.log("  sure run Sure.Tweeter.serve        # :8766 login, tweets, upload");
-    console.log("sure doc Sure.Ui.sandbox");
-    return;
-  }
-  if (t === "web") {
-    console.log("Timed Html.Client / Sure.Ui / Sure.Ssr / Http.App / Sheet.window bench.");
-    console.log("Each line runs real draw/step/match work and prints a checksum (work=).");
-    console.log("n=0 is no work. Junk match and unknown clicks keep the model.");
-    console.log("");
-    console.log("  sure Sure.Web.bench --run");
-    console.log("");
-    console.log("  html.draw / html.step / html.step.junk");
-    console.log("  ui.draw / ui.step");
-    console.log("  ssr.document / ssr.not_found / ssr.fire.nil");
-    console.log("  app.match.hit / app.match.junk / app.fire.nil");
-    console.log("  sheet.window.10k / html.escape.junk / html.escape.empty");
-    console.log("");
-    console.log("sure bench times type-check. This times the web runtime.");
-    return;
-  }
-  if (t === "ffi") {
-    console.log("Call JS/TS from Sure. Arguments and results are JSON, never a raw JS object.");
-    console.log("");
-    console.log("  Ffi.call(\"Math.abs\", JSON.array([JSON.enc.nat(2)]))");
-    console.log("  Ffi.call_nat(\"Sure.ffi.add\", [2, 3])");
-    console.log("");
-    console.log("Register: globalThis.SURE_FFI[\"my.fn\"] = (a, b) => a + b");
-    console.log("Dotted names walk globalThis (Math.max) without eval.");
-    console.log("Empty name, missing function, bad JSON, and throws are Ffi.Err — not a Sure value.");
-    console.log("sure doc Ffi.call");
-    return;
-  }
-  if (t === "emit") {
-    console.log("sure build writes JavaScript only after the program checks and theorems prove.");
-    console.log("");
-    console.log("  sure build              # dist/Main.js");
-    console.log("  sure build --html T     # dist/T.html (self-contained page)");
-    console.log("  sure run                # uses dist/ when it is fresh");
-    console.log("");
-    console.log("Compilation keeps definitions reachable from the entry term.");
-    console.log("Unused module functions, proofs, stdlib, and IO host slices are dropped.");
-    console.log("A computed IO.ask query keeps the full host.");
-    console.log("");
-    console.log("Term names look like Main or Html.Counter.client.");
-    console.log("Paths like ../x are not files.");
-    return;
-  }
-  print_help_all();
-}
-
-function print_help_all() {
-  console.log("# Sure " + SURE_VERSION + " (Legacy Kind " + KIND_LINEAGE + ")");
-  console.log("");
-  console.log("  sure new <name>              # scaffold; prints the next commands");
-  console.log("  sure prove [Term...]         # type-check theorems");
-  console.log("  sure build [Term]            # prove + emit dist/<Term>.js (tree-shaken)");
-  console.log("  sure build --html [Term]     # emit dist/<Term>.html (Html.Client)");
-  console.log("  sure emit [Term]             # same as build");
-  console.log("  sure run [Term]              # emit dist/ if needed, then spawn");
-  console.log("  sure watch                   # re-check theorems on src change");
-  console.log("  sure --bun run [Term]        # spawn emitted JS with Bun");
-  console.log("  sure check <Term>            # type-check");
-  console.log("  sure doc <Term>              # comment + type");
-  console.log("  sure goal <Term>             # remaining holes");
-  console.log("  sure debug <Term>            # type + holes + traces");
-  console.log("  sure prove --debug=trace     # off|error|info|trace");
-  console.log("  sure run --debug-opt=host    # host|term|holes|qc|all");
-  console.log("  sure fill code|||term        # replace ?implement and recheck");
-  console.log("  sure qc <Law>                # sample a lemma");
-  console.log("  sure gen <Term>              # generate tests and proofs from the type");
-  console.log("  sure impact <Name>           # callers + proofs");
-  console.log("  sure theorems [Name]         # specs about a name");
-  console.log("  sure deps <Name>             # names this definition uses");
-  console.log("  sure graph <Name>            # dependency graph");
-  console.log("  sure bench <Term>            # time type-check");
-  console.log("  sure fmt <Term>              # pretty-print");
-  console.log("  sure test                    # prover + runtime + edges");
-  console.log("  sure cover                   # public API coverage, need 90%");
-  console.log("  sure repl                    # :help :check :prove :quit");
-  console.log("  sure lsp                     # language server (VS Code: editors/vscode)");
-  console.log("  sure agent                   # JSON-RPC compiler-as-tool");
-  console.log("  sure add / remove            # dependencies");
-  console.log("  sure install                 # materialize sure.lock");
-  console.log("  sure expose <Module>         # package public modules");
-  console.log("  sure Term --js / --run       # compile or run one term");
-  console.log("");
-  console.log("  sure help prove | json | html | emit | ffi | gen | pkg | bun | worker | db | debug | lsp | pipe | time | cli | log | repl | test | env | cfg | ssr | ui | web");
-  console.log("  SURE_RUNTIME=bun             # same as --bun");
-  console.log("");
-  console.log("SURE_BASE  stdlib directory.  kind  is still accepted as a command name.");
-}
-
 function is_file(name){
   return name.slice(-5) === ".sure"
 }
@@ -1159,10 +626,49 @@ function report_failed(text) {
   return /Type mismatch|Undefined reference|Can't infer|Term not found|Compilation error|failed/i.test(text);
 }
 
+var fingerprint = require("./fingerprint");
+var cache_store = require("./cache_store");
+var protocol = require("./protocol");
+var manifest_model = require("./manifest_model");
+var scan = require("./scan")({fs: fs, path: path, compiler: compiler});
+var collect_kind_files = scan.collect_kind_files;
+var word_at = scan.word_at;
+var line_col_offset = scan.line_col_offset;
+var file_of_name = scan.file_of_name;
+var scan_references = scan.scan_references;
+var def_header = scan.def_header;
+var scan_defs = scan.scan_defs;
+var name_mentioned = scan.name_mentioned;
+var scan_impact = scan.scan_impact;
+var scan_theorems = scan.scan_theorems;
+var scan_docs = scan.scan_docs;
+var names_in = scan.names_in;
+var scan_dependencies = scan.scan_dependencies;
+var scan_graph = scan.scan_graph;
+var scan_project_holes = scan.scan_project_holes;
+var scan_symbols = scan.scan_symbols;
+var run_host = require("./run_host")({
+  path: path,
+  fs: fs,
+  run_spawn: run_spawn,
+  ORIG_CWD: ORIG_CWD
+});
+var sure_runtime_pick = run_host.sure_runtime_pick;
+var bun_available = run_host.bun_available;
+var bun_native = run_host.bun_native;
+var sure_js_abs = run_host.sure_js_abs;
+var restore_user_cwd = run_host.restore_user_cwd;
+var sure_run_js = run_host.sure_run_js;
+var run_compiled_js = run_host.run_compiled_js;
+
 var workspace = require("./workspace")({
   kind: kind,
   array_to_list: array_to_list,
-  shown_has_hole: shown_has_hole
+  shown_has_hole: shown_has_hole,
+  cache_key: process.env.SURE_CACHE_KEY,
+  cache_root: process.cwd(),
+  file_of_name: function(n) { return file_of_name(n); },
+  scan_impact: function(n) { return scan_impact(n); }
 });
 
 async function check_term(name, as_json) {
@@ -1252,39 +758,8 @@ var _compiler_input_hash = null;
 
 function hash_kind_tree(h, root) {
   if (!root || !fs.existsSync(root)) return;
-  var files = collect_kind_files(root).sort();
-  var meta = [];
-  for (var i = 0; i < files.length; i++) {
-    try {
-      var st = fs.statSync(files[i]);
-      meta.push(path.relative(root, files[i]) + "\t" + st.size + "\t" + Math.floor(st.mtimeMs || st.mtime.getTime()));
-    } catch (e) {
-      meta.push(path.relative(root, files[i]) + "\t0\t0");
-    }
-  }
-  var crypto = require("crypto");
-  var metaKey = crypto.createHash("sha256").update(meta.join("\n")).digest("hex");
-  var stamp = path.join(root, ".cache", "src.digest.json");
-  try {
-    var prev = JSON.parse(fs.readFileSync(stamp, "utf8"));
-    if (prev && prev.meta === metaKey && prev.digest) {
-      h.update(prev.digest);
-      return;
-    }
-  } catch (e2) {}
-  var inner = crypto.createHash("sha256");
-  for (var j = 0; j < files.length; j++) {
-    inner.update(path.relative(root, files[j]));
-    inner.update("\0");
-    try { inner.update(fs.readFileSync(files[j])); } catch (e3) { inner.update("missing"); }
-    inner.update("\0");
-  }
-  var digest = inner.digest("hex");
-  try {
-    fs.mkdirSync(path.join(root, ".cache"), {recursive: true});
-    fs.writeFileSync(stamp, JSON.stringify({meta: metaKey, digest: digest}) + "\n");
-  } catch (e4) {}
-  h.update(digest);
+  var r = fingerprint.digestTree(root, {verify: process.env.SURE_FINGERPRINT === "verify"});
+  h.update(r.digest || "");
 }
 
 function file_fingerprint(p) {
@@ -1416,6 +891,7 @@ var sure_emit_safe = emit.sure_emit_safe;
 var sure_emit_file = emit.sure_emit_file;
 var sure_emit_html_file = emit.sure_emit_html_file;
 var SURE_DOM_EVENTS = emit.SURE_DOM_EVENTS;
+var SURE_DOM_CORE_EVENTS = emit.SURE_DOM_CORE_EVENTS;
 var sure_dom_mount_src = emit.sure_dom_mount_src;
 var sure_html_css = emit.sure_html_css;
 var sure_html_wrap = emit.sure_html_wrap;
@@ -1463,19 +939,40 @@ async function build_and_emit(term, force, html) {
   if (!force && manFile && html && prev && prev.ok && prev.term === term && prev.src_hash === hash && prev.html && fs.existsSync(out) && fs.statSync(out).size > 0) {
     return {ok: true, skipped: true, file: out, term: term, src_hash: hash, html: true};
   }
-  var check_failed = await check_term_ok(term);
-  if (check_failed) {
+  var theorems = [];
+  if (manFile) {
+    try {
+      var man = read_manifest(manFile);
+      theorems = man.theorems || [];
+      if (!theorems.length) theorems = scan_src_theorems(path.join(root, man.src || "src"));
+    } catch (eM) {}
+  }
+  var req = protocol.requestOf({
+    entry: term,
+    theorems: theorems,
+    modules: true,
+    html: !!html,
+    proofs: true,
+    holes: true,
+    emit: html ? "html" : "js"
+  });
+  var batch = await workspace.build(req);
+  if (!batch.ok) {
     if (manFile) write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
-    return {ok: false, error: "unproved", file: "", term: term};
+    return {ok: false, error: "unproved", file: "", term: term, report: batch};
+  }
+  var prove_failed = 0;
+  if (manFile) prove_failed = await prove_project_theorems(false);
+  if (prove_failed) {
+    write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
+    return {ok: false, error: "unproved theorems", file: "", term: term};
   }
   var mods = check_project_modules(true);
   if (!mods.ok) {
     if (manFile) write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
     return {ok: false, error: "unproved module", file: "", term: term, modules: mods};
   }
-  var prove_failed = 0;
-  if (manFile) prove_failed = await prove_project_theorems(false);
-  if (prove_failed) {
+  if (manFile && theorems.length && batch.proved === false) {
     write_build_stamp(root, {ok: false, term: term, src_hash: hash, file: ""});
     return {ok: false, error: "unproved theorems", file: "", term: term};
   }
@@ -2307,271 +1804,6 @@ function json_err(id, code, message, data) {
   return {jsonrpc: "2.0", id: id == null ? null : id, error: err};
 }
 
-function collect_kind_files(dir, acc) {
-  acc = acc || [];
-  var names;
-  try { names = fs.readdirSync(dir); } catch (e) { return acc; }
-  for (var i = 0; i < names.length; i++) {
-    if (names[i] === ".cache" || names[i] === ".sure" || names[i] === "App" || names[i] === "User" || names[i] === "node_modules" || names[i] === "sure_modules" || names[i] === "kind_modules") continue;
-    var p = path.join(dir, names[i]);
-    var st;
-    try { st = fs.statSync(p); } catch (e) { continue; }
-    if (st.isDirectory()) collect_kind_files(p, acc);
-    else if (names[i].slice(-5) === ".sure") acc.push(p);
-  }
-  return acc;
-}
-
-function word_at(text, offset) {
-  var i = offset;
-  var j = offset;
-  while (i > 0 && /[A-Za-z0-9._]/.test(text[i - 1])) i--;
-  while (j < text.length && /[A-Za-z0-9._]/.test(text[j])) j++;
-  return text.slice(i, j);
-}
-
-function line_col_offset(text, line, character) {
-  var lines = String(text).split("\n");
-  var off = 0;
-  for (var i = 0; i < line && i < lines.length; i++) off += lines[i].length + 1;
-  return off + (character || 0);
-}
-
-function file_of_name(name) {
-  var candidates = [
-    name.replace(/\./g, "/") + ".sure",
-    name.split(".").slice(0, -1).join("/") + ".sure",
-    name.split(".")[0] + ".sure",
-  ];
-  for (var i = 0; i < candidates.length; i++) {
-    var p = path.join(process.cwd(), candidates[i]);
-    if (fs.existsSync(p)) return p;
-  }
-  return path.join(process.cwd(), candidates[0]);
-}
-
-function scan_references(name) {
-  var files = collect_kind_files(process.cwd());
-  var hits = [];
-  for (var i = 0; i < files.length && hits.length < 200; i++) {
-    var body;
-    try { body = fs.readFileSync(files[i], "utf8"); } catch (e) { continue; }
-    var toks = compiler.idents(body);
-    var hit = false;
-    for (var t = 0; t < toks.length; t++) {
-      if (toks[t].name === name) { hit = true; break; }
-    }
-    if (!hit) continue;
-    var rel = path.relative(process.cwd(), files[i]);
-    hits.push({file: rel, name: name});
-  }
-  return hits;
-}
-
-function def_header(line) {
-  return /^([A-Za-z][A-Za-z0-9._]*)(?:<[^>]*>)?(?:\([^)]*\))?\s*[:](.*)$/.exec(line);
-}
-
-function scan_defs(dir) {
-  var files = collect_kind_files(dir || process.cwd());
-  var out = [];
-  for (var i = 0; i < files.length; i++) {
-    var body;
-    try { body = fs.readFileSync(files[i], "utf8"); } catch (e) { continue; }
-    var rel = path.relative(process.cwd(), files[i]);
-    var parsed = compiler.parse_module_headers(body);
-    var mod = parsed.mod && parsed.mod.name;
-    var doc = compiler.parse_document(body);
-    var blocks = {};
-    var docs = {};
-    var pendingDoc = [];
-    for (var b = 0; b < doc.blocks.length; b++) {
-      var blk = doc.blocks[b];
-      if (blk.kind === "comment") {
-        pendingDoc.push(String(blk.text || "").replace(/^\s*\/\/\s?/gm, ""));
-        continue;
-      }
-      if (blk.kind === "def" || blk.kind === "type") {
-        var first = String(blk.text || "").split("\n")[0] || "";
-        var hm = /^type\s+([A-Za-z][A-Za-z0-9._]*)/.exec(first) || /^([A-Za-z][A-Za-z0-9._]*)/.exec(first);
-        if (hm) {
-          blocks[hm[1]] = blk.text;
-          docs[hm[1]] = pendingDoc.join("\n");
-        }
-      }
-      if (blk.kind !== "blank") pendingDoc = [];
-    }
-    var syms = compiler.symbols(body);
-    for (var s = 0; s < syms.length; s++) {
-      var name = syms[s].name;
-      var text = blocks[name] || "";
-      var qual = (mod && name.indexOf(".") < 0) ? mod + "." + name : name;
-      out.push({
-        name: qual,
-        file: rel,
-        line: syms[s].line,
-        type: syms[s].type || "",
-        theorem: !!syms[s].theorem,
-        implement: /\?implement/.test(text),
-        body: text,
-        doc: docs[name] || ""
-      });
-    }
-  }
-  return out;
-}
-
-function name_mentioned(text, name) {
-  if (!name) return false;
-  var re = new RegExp("\\b" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b");
-  return re.test(text || "");
-}
-
-function scan_impact(name) {
-  if (!name) return {ok: false, error: "need name"};
-  var defs = scan_defs();
-  var callers = [];
-  var proofs = [];
-  var holes = [];
-  for (var i = 0; i < defs.length; i++) {
-    var d = defs[i];
-    if (d.name === name) continue;
-    if (!name_mentioned(d.body, name) && !name_mentioned(d.type, name)) continue;
-    var hit = {name: d.name, file: d.file, line: d.line, theorem: !!d.theorem};
-    if (d.theorem) {
-      if (proofs.length < 100) proofs.push(hit);
-    } else if (callers.length < 100) {
-      callers.push(hit);
-    }
-    if (d.implement && holes.length < 50) holes.push(hit);
-  }
-  return {
-    ok: true,
-    name: name,
-    callers: callers,
-    proofs: proofs,
-    holes: holes,
-  };
-}
-
-function scan_theorems(name) {
-  var defs = scan_defs();
-  var out = [];
-  for (var i = 0; i < defs.length && out.length < 200; i++) {
-    var d = defs[i];
-    if (!d.theorem) continue;
-    if (name && d.name !== name && !name_mentioned(d.body, name) && !name_mentioned(d.type, name)) continue;
-    out.push({name: d.name, file: d.file, line: d.line, type: d.type});
-  }
-  return {ok: true, name: name || "", theorems: out};
-}
-
-function scan_docs(name) {
-  if (!name) return {ok: false, error: "need name"};
-  var defs = scan_defs();
-  var entries = [];
-  for (var i = 0; i < defs.length && entries.length < 200; i++) {
-    var d = defs[i];
-    var hit = d.name === name || d.name.indexOf(name + ".") === 0 ||
-      (name.slice(-1) === "." && d.name.indexOf(name) === 0);
-    if (!hit) continue;
-    entries.push({
-      name: d.name,
-      file: d.file,
-      line: d.line,
-      type: d.type,
-      doc: d.doc || "",
-      theorem: !!d.theorem,
-      implement: !!d.implement,
-    });
-  }
-  return {ok: entries.length > 0, name: name, entries: entries};
-}
-
-function names_in(text) {
-  var out = [];
-  var re = /[A-Z][A-Za-z0-9._]*/g;
-  var m;
-  while ((m = re.exec(String(text || "")))) {
-    if (out.indexOf(m[0]) < 0) out.push(m[0]);
-  }
-  return out;
-}
-
-function scan_dependencies(name) {
-  if (!name) return {ok: false, error: "need name"};
-  var defs = scan_defs();
-  var d = null;
-  for (var i = 0; i < defs.length; i++) {
-    if (defs[i].name === name) { d = defs[i]; break; }
-  }
-  if (!d) return {ok: false, error: "not found", name: name, dependencies: []};
-  var raw = names_in(d.body);
-  var dependencies = [];
-  for (var j = 0; j < raw.length; j++) {
-    if (raw[j] !== name) dependencies.push(raw[j]);
-  }
-  return {ok: true, name: name, file: d.file, theorem: !!d.theorem, dependencies: dependencies};
-}
-
-function scan_graph(name, depth) {
-  if (!name) return {ok: false, error: "need name"};
-  var dmax = depth == null || depth === "" ? 2 : Number(depth);
-  if (!Number.isFinite(dmax) || dmax < 0) dmax = 0;
-  var defs = scan_defs();
-  var map = {};
-  for (var i = 0; i < defs.length; i++) map[defs[i].name] = defs[i];
-  if (!map[name]) return {ok: false, error: "not found", name: name, depth: dmax, nodes: [], edges: []};
-  var nodes = [];
-  var edges = [];
-  var seen = {};
-  var budget = 48;
-  function walk(n, left) {
-    if (seen[n] || nodes.length >= budget) return;
-    seen[n] = true;
-    var def = map[n];
-    nodes.push({name: n, ok: !!def, theorem: !!(def && def.theorem), file: def ? def.file : ""});
-    if (!def || left <= 0) return;
-    var raw = names_in(def.body);
-    for (var j = 0; j < raw.length; j++) {
-      if (raw[j] === n) continue;
-      edges.push({from: n, to: raw[j]});
-      walk(raw[j], left - 1);
-    }
-  }
-  walk(name, dmax);
-  return {ok: true, name: name, depth: dmax, nodes: nodes, edges: edges};
-}
-
-function scan_project_holes() {
-  var defs = scan_defs();
-  var out = [];
-  for (var i = 0; i < defs.length && out.length < 200; i++) {
-    if (!defs[i].implement) continue;
-    out.push({name: defs[i].name, file: defs[i].file, line: defs[i].line});
-  }
-  return {ok: true, holes: out};
-}
-
-function scan_symbols(prefix) {
-  var files = collect_kind_files(process.cwd());
-  var out = [];
-  var pre = prefix || "";
-  for (var i = 0; i < files.length && out.length < 400; i++) {
-    var body;
-    try { body = fs.readFileSync(files[i], "utf8"); } catch (e) { continue; }
-    var rel = path.relative(process.cwd(), files[i]);
-    var syms = compiler.symbols(body);
-    for (var j = 0; j < syms.length && out.length < 400; j++) {
-      if (syms[j].name.indexOf(pre) === 0) {
-        out.push({name: syms[j].name, file: rel, line: syms[j].line, type: syms[j].type});
-      }
-    }
-  }
-  return out;
-}
-
-
 var agent = require("./agent")({
   fs: fs,
   kind: kind,
@@ -2771,6 +2003,7 @@ var selftest = require("./selftest")({
   get_ORIG_CWD: function() { return ORIG_CWD; },
   set_ORIG_CWD: function(v) { ORIG_CWD = v; },
   SURE_DOM_EVENTS: SURE_DOM_EVENTS,
+  SURE_DOM_CORE_EVENTS: SURE_DOM_CORE_EVENTS,
   agent_check_code: function(a) { return agent_check_code(a); },
   agent_dispatch: function(a, b) { return agent_dispatch(a, b); },
   bench_stats: function(a) { return bench_stats(a); },
@@ -2890,65 +2123,6 @@ var cmd_repl = repl.cmd_repl;
 
 
 
-
-function sure_runtime_pick(flag, env, native) {
-  if (flag) return "bun";
-  if (String(env || "") === "bun") return "bun";
-  if (native) return "bun";
-  return "node";
-}
-
-function bun_available() {
-  try {
-    run_spawn("bun", ["--version"], {stdio: "pipe", timeout: 5000});
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function bun_native() {
-  return typeof Bun !== "undefined";
-}
-
-function sure_js_abs(js_path) {
-  if (!js_path) return "";
-  return path.isAbsolute(js_path) ? js_path : path.join(process.cwd(), js_path);
-}
-
-function restore_user_cwd() {
-  try { if (ORIG_CWD) process.chdir(ORIG_CWD); } catch (e) {}
-}
-
-function sure_run_js(js_path, use_bun, extra) {
-  extra = extra || [];
-  restore_user_cwd();
-  if (!js_path) return {ok: false, error: "need js file"};
-  var abs = sure_js_abs(js_path);
-  if (!abs || !fs.existsSync(abs)) return {ok: false, error: "missing js"};
-  var want = sure_runtime_pick(!!use_bun, process.env.SURE_RUNTIME, bun_native()) === "bun";
-  try {
-    if (want) {
-      if (!bun_native() && !bun_available()) return {ok: false, error: "bun not found"};
-      var bun_bin = bun_native() ? process.execPath : "bun";
-      run_spawn(bun_bin, [abs].concat(extra), {stdio: "inherit"});
-      return {ok: true, runtime: "bun", file: abs};
-    }
-    var node_bin = bun_native() ? (process.env.SURE_NODE || "node") : process.execPath;
-    run_spawn(node_bin, ["--stack-size=10000", abs].concat(extra), {stdio: "inherit"});
-    return {ok: true, runtime: "node", file: abs};
-  } catch (e) {
-    return {ok: false, error: String(e && e.message || e), runtime: want ? "bun" : "node", file: abs};
-  }
-}
-
-function run_compiled_js(js_path, use_bun, extra) {
-  var r = sure_run_js(js_path, use_bun, extra);
-  if (!r.ok) {
-    console.error(r.error || "run failed");
-    process.exit(1);
-  }
-}
 
 async function run_term_inprocess(term) {
   var prev_sure = process.env.SURE_PATH;
@@ -3329,8 +2503,12 @@ function spawn_term_run(term) {
     var rootW = manW ? path.dirname(manW) : ORIG_CWD;
     var srcW = manW ? (man_src_dirs(read_manifest(manW), rootW)[0] || rootW) : rootW;
     var termsW = default_prove_names();
-    async function tick() {
-      workspace.reset();
+    var lastFs = null;
+    async function tick(file) {
+      if (file) {
+        var inv = workspace.invalidateFile(path.resolve(srcW, file));
+        console.log("watch invalidate " + (inv.dropped || 0) + " " + (inv.names || []).slice(0, 8).join(" "));
+      }
       console.log("watch check " + termsW.join(" "));
       try {
         var r = await workspace.check_names(termsW, {print: true});
@@ -3341,9 +2519,14 @@ function spawn_term_run(term) {
     }
     await tick();
     try {
-      fs.watch(srcW, {recursive: true}, function() {
+      fs.watch(srcW, {recursive: true}, function(ev, fname) {
+        lastFs = fname || lastFs;
         clearTimeout(tick._t);
-        tick._t = setTimeout(function() { tick(); }, 200);
+        tick._t = setTimeout(function() {
+          var f = lastFs;
+          lastFs = null;
+          tick(f);
+        }, 200);
       });
     } catch (eW) {
       console.error("sure watch: " + eW);
@@ -3351,6 +2534,21 @@ function spawn_term_run(term) {
     }
     console.log("watching " + srcW);
     return;
+  }
+  if (name === "cache") {
+    var sub = argv[1] || "stats";
+    var dir = STDLIB_BASE || process.cwd();
+    if (sub === "stats") {
+      console.log(JSON.stringify(cache_store.stats(dir, process.env.SURE_CACHE_KEY), null, 2));
+      process.exit(0);
+    }
+    if (sub === "clean") {
+      var outC = cache_store.clean(dir, {compiler: process.env.SURE_CACHE_KEY, keepMs: argv.indexOf("--all") >= 0 ? 0 : 7 * 24 * 3600 * 1000});
+      console.log(JSON.stringify(outC, null, 2));
+      process.exit(outC.ok ? 0 : 1);
+    }
+    console.error("sure cache stats|clean");
+    process.exit(1);
   }
   if (name === "help") {
     print_help_topic(argv[1] || "start");

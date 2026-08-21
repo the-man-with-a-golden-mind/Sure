@@ -1113,6 +1113,129 @@ function rename_global(src, oldName, newName) {
   return next + src.slice(p);
 }
 
+function file_locals(src, mod) {
+  var loc = Object.create(null);
+  var xs = symbols(src);
+  for (var i = 0; i < xs.length; i++) {
+    var n = xs[i].name;
+    loc[n] = true;
+    if (mod && n.indexOf(".") < 0) loc[mod + "." + n] = true;
+  }
+  return loc;
+}
+
+function import_imps(imports) {
+  return (imports || []).map(function(imp) {
+    var names = (imp.exposing && imp.exposing.names) || [];
+    if (imp.exposing && imp.exposing.all) names = names.slice();
+    return {mod: imp.name, names: names, exposing: imp.exposing || {all: false, names: []}, qualified: !!imp.qualified};
+  });
+}
+
+function resolve_at(src, offset, pre) {
+  src = String(src || "");
+  var at = ident_at(src, offset);
+  if (!at) return null;
+  var info = (pre && pre.info) || ident_bindings(src);
+  var idx = -1;
+  for (var i = 0; i < info.toks.length; i++) {
+    if (info.toks[i].start === at.start) { idx = i; break; }
+  }
+  if (idx < 0) return null;
+  var bind = info.bind_of[idx];
+  var parsed = (pre && pre.parsed) || parse_module_headers(src);
+  var mod = (parsed.mod && parsed.mod.name) || "";
+  var imports = (parsed.mod && parsed.mod.imports) || parsed.imports || [];
+  var short = at.name.indexOf(".") >= 0 ? at.name.split(".").pop() : at.name;
+  var local = bind !== -1;
+  var qual = at.name;
+  if (!local) {
+    if (at.name.indexOf(".") >= 0) {
+      qual = at.name;
+    } else {
+      var locals = (pre && pre.locals) || file_locals(src, mod);
+      var imps = import_imps(imports);
+      qual = mod_resolve(mod, locals, imps, at.name);
+      if (qual === at.name && mod && (locals[mod + "." + at.name] || locals[at.name])) {
+        qual = mod + "." + at.name;
+      }
+    }
+  }
+  return {
+    token: at,
+    idx: idx,
+    binder: bind,
+    local: local,
+    name: at.name,
+    short: short,
+    qual: local ? null : qual,
+    module: mod,
+    imports: imports
+  };
+}
+
+function same_def(a, b) {
+  if (!a || !b) return false;
+  if (a.local || b.local) return a.local && b.local && a.binder === b.binder && a.idx != null && b.idx != null
+    ? a.binder === b.binder
+    : false;
+  return !!(a.qual && a.qual === b.qual);
+}
+
+function rename_qual(src, qual, newShort) {
+  src = String(src || "");
+  qual = String(qual || "");
+  newShort = String(newShort || "");
+  if (!qual || !newShort) return src;
+  var info = ident_bindings(src);
+  var parsed = parse_module_headers(src);
+  var locals = file_locals(src, parsed.mod && parsed.mod.name);
+  var pre = {info: info, parsed: parsed, locals: locals};
+  var next = "";
+  var p = 0;
+  var hit = false;
+  for (var i = 0; i < info.toks.length; i++) {
+    if (info.bind_of[i] !== -1) continue;
+    var rr = resolve_at(src, info.toks[i].start, pre);
+    if (!rr || rr.qual !== qual) continue;
+    var tok = info.toks[i].name;
+    var repl = tok.indexOf(".") >= 0 ? tok.slice(0, tok.lastIndexOf(".") + 1) + newShort : newShort;
+    next += src.slice(p, info.toks[i].start) + repl;
+    p = info.toks[i].end;
+    hit = true;
+  }
+  if (!hit) return src;
+  return next + src.slice(p);
+}
+
+function rename_resolved(src, offset, newName) {
+  src = String(src || "");
+  newName = String(newName || "");
+  if (!newName) return null;
+  var info = ident_bindings(src);
+  var parsed = parse_module_headers(src);
+  var locals = file_locals(src, parsed.mod && parsed.mod.name);
+  var pre = {info: info, parsed: parsed, locals: locals};
+  var r = resolve_at(src, offset, pre);
+  if (!r) return null;
+  if (r.local) return rename_ident(src, offset, newName);
+  var next = "";
+  var p = 0;
+  var hit = false;
+  for (var i = 0; i < info.toks.length; i++) {
+    if (info.bind_of[i] !== -1) continue;
+    var rr = resolve_at(src, info.toks[i].start, pre);
+    if (!rr || rr.qual !== r.qual) continue;
+    var tok = info.toks[i].name;
+    var repl = tok.indexOf(".") >= 0 ? tok.slice(0, tok.lastIndexOf(".") + 1) + newName : newName;
+    next += src.slice(p, info.toks[i].start) + repl;
+    p = info.toks[i].end;
+    hit = true;
+  }
+  if (!hit) return null;
+  return next + src.slice(p);
+}
+
 function ident_at(src, offset) {
   src = String(src || "");
   offset = Number(offset) || 0;
@@ -1185,7 +1308,11 @@ module.exports = {
   idents: idents,
   ident_at: ident_at,
   ident_bindings: ident_bindings,
+  resolve_at: resolve_at,
+  same_def: same_def,
   rename_ident: rename_ident,
+  rename_resolved: rename_resolved,
+  rename_qual: rename_qual,
   rename_global: rename_global,
   get_map: get_map,
   map_offset: map_offset,

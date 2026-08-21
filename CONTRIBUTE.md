@@ -72,6 +72,18 @@ Word.float.gtn
 
 Adding these would be great.
 
+## Host tooling (ReScript)
+
+Compiler/CLI modules in `bin/js/src` are CommonJS. Pure protocol helpers have a ReScript twin (`.res` + committed `.res.js`) behind the same JS facade. Users never need the ReScript compiler.
+
+```
+cd bin/js
+npx rescript          # Node 20.11+ for ReScript 11/12 build
+node test-units.js    # dual-runs JS and .res.js on the same fixtures
+```
+
+Do not convert `sure.js`, FormCore, or the embedded browser runtime string by hand. See [docs/rescript-performance-plan.md](docs/rescript-performance-plan.md).
+
 ## Add another back-end
 
 Are you a full-time JavaScript developer that doesn't like JavScript?  You can

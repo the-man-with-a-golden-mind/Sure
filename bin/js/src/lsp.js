@@ -432,7 +432,7 @@ function lsp_replace_word(text, offset, newN) {
 }
 
 function lsp_new_state() {
-  return {docs: {}, init: false, shutdown: false, exit: false};
+  return {docs: {}, init: false, shutdown: false, exit: false, cancelled: {}};
 }
 
 function lsp_capabilities() {
@@ -523,7 +523,16 @@ async function lsp_handle(state, msg) {
     if (id !== undefined) error(-32002, "ServerNotInitialized");
     return {state: state, out: out};
   }
-  if (method === "initialized" || method === "$/cancelRequest") return {state: state, out: out};
+  if (method === "$/cancelRequest") {
+    state.cancelled = state.cancelled || {};
+    if (params && params.id != null) state.cancelled[params.id] = true;
+    return {state: state, out: out};
+  }
+  if (method === "initialized") return {state: state, out: out};
+  if (id !== undefined && state.cancelled && state.cancelled[id]) {
+    delete state.cancelled[id];
+    return {state: state, out: out};
+  }
   if (method === "shutdown") {
     state.shutdown = true;
     result(null);
@@ -594,24 +603,28 @@ async function lsp_handle(state, msg) {
     return {state: state, out: out};
   }
   if (method === "textDocument/definition") {
-    name = lsp_name_at(text, pos.line, pos.character);
-    if (!name) { result(null); return {state: state, out: out}; }
-    var localDefs = parser_defs(uri || "buffer.sure", text) || [];
-    var localHit = null;
-    for (var li = 0; li < localDefs.length; li++) {
-      if (localDefs[li].name === name || localDefs[li].name.split(".").pop() === name) { localHit = localDefs[li]; break; }
+    var offD = line_col_offset(text, pos.line, pos.character);
+    var resolvedD = compiler.resolve_at(text, offD);
+    if (!resolvedD) { result(null); return {state: state, out: out}; }
+    if (resolvedD.local) {
+      var binfo = compiler.ident_bindings(text);
+      var btok = resolvedD.binder >= 0 ? binfo.toks[resolvedD.binder] : null;
+      if (btok) {
+        result({uri: uri, range: {start: lsp_pos_at(text, btok.start), end: lsp_pos_at(text, btok.end)}});
+        return {state: state, out: out};
+      }
     }
-    if (localHit && localHit.range) {
-      result({uri: uri, range: localHit.range});
-      return {state: state, out: out};
-    }
+    var want = resolvedD.qual || resolvedD.name;
     var defs = scan_defs();
     var hit = null;
-    for (var di = 0; di < defs.length; di++) { if (defs[di].name === name) { hit = defs[di]; break; } }
-    var file = hit ? path.resolve(process.cwd(), hit.file) : file_of_name(name);
+    for (var di = 0; di < defs.length; di++) {
+      if (defs[di].name === want) { hit = defs[di]; break; }
+    }
+    var file = hit ? path.resolve(process.cwd(), hit.file) : file_of_name(want);
     if (!file || !fs.existsSync(file)) { result(null); return {state: state, out: out}; }
     var line = hit ? hit.line : 0;
-    result({uri: lsp_path_to_uri(file), range: {start: {line: line, character: 0}, end: {line: line, character: name.length}}});
+    var lab = hit ? String(hit.name).split(".").pop() : resolvedD.short;
+    result({uri: lsp_path_to_uri(file), range: {start: {line: line, character: 0}, end: {line: line, character: lab.length}}});
     return {state: state, out: out};
   }
   if (method === "textDocument/completion") {
@@ -647,70 +660,40 @@ async function lsp_handle(state, msg) {
   }
   if (method === "textDocument/rename") {
     var off = line_col_offset(text, pos.line, pos.character);
-    name = lsp_name_at(text, pos.line, pos.character);
+    var resolvedR = compiler.resolve_at(text, off);
     var newN = params.newName;
-    if (!name || newN == null || String(newN) === "") { error(-32602, "need name"); return {state: state, out: out}; }
-    var next = lsp_replace_word(text, off, String(newN));
+    if (!resolvedR || newN == null || String(newN) === "") { error(-32602, "need name"); return {state: state, out: out}; }
+    var next = compiler.rename_resolved(text, off, String(newN));
     if (next == null) { error(-32602, "need name"); return {state: state, out: out}; }
     state.docs[uri] = next;
     var changes = [{
       textDocument: {uri: uri, version: td.version == null ? null : td.version},
       edits: [{range: lsp_full_range(text), newText: next}]
     }];
-    var infoR0 = compiler.ident_bindings(text);
-    var atR0 = compiler.ident_at(text, off);
-    var isGlobal = false;
-    if (atR0) {
-      for (var gi = 0; gi < infoR0.toks.length; gi++) {
-        if (infoR0.toks[gi].start === atR0.start && infoR0.bind_of[gi] === -1) { isGlobal = true; break; }
-      }
-    }
-    if (isGlobal) {
-      var parsedM = compiler.parse_module_headers(text);
-      var qual = (parsedM.mod && parsedM.mod.name && name.indexOf(".") < 0)
-        ? parsedM.mod.name + "." + name : name;
-      var names = [name];
-      if (qual !== name) names.push(qual);
+    if (!resolvedR.local && resolvedR.qual) {
       var seenF = {};
       seenF[uri] = true;
-      for (var ni = 0; ni < names.length; ni++) {
-        var refs = scan_references(names[ni]);
-        for (var ri = 0; ri < refs.length; ri++) {
-          var fp = path.resolve(process.cwd(), refs[ri].file);
-          var u2 = lsp_path_to_uri(fp);
-          if (seenF[u2]) continue;
-          seenF[u2] = true;
-          var body;
-          try { body = fs.readFileSync(fp, "utf8"); } catch (e) { continue; }
-          var edited = body;
-          var parsed2 = compiler.parse_module_headers(body);
-          var otherMod = parsed2.mod && parsed2.mod.name;
-          var fromMod = parsedM.mod && parsedM.mod.name;
-          if (fromMod && otherMod === fromMod) {
-            edited = compiler.rename_global(edited, name, String(newN));
-            if (qual !== name) edited = compiler.rename_global(edited, qual, fromMod + "." + String(newN));
-          } else {
-            if (qual !== name && fromMod) {
-              edited = compiler.rename_global(edited, qual, fromMod + "." + String(newN));
-            }
-            var imps = (parsed2.mod && parsed2.mod.imports) || parsed2.imports || [];
-            var exposes = false;
-            for (var ii = 0; ii < imps.length; ii++) {
-              if (imps[ii].name === fromMod) {
-                var ex = imps[ii].exposing || {};
-                if (ex.all) exposes = true;
-                else if ((ex.names || []).indexOf(name) >= 0) exposes = true;
-              }
-            }
-            if (exposes) edited = compiler.rename_global(edited, name, String(newN));
-          }
-          if (edited === body) continue;
-          changes.push({
-            textDocument: {uri: u2, version: null},
-            edits: [{range: lsp_full_range(body), newText: edited}]
-          });
-        }
+      var defsR = scan_defs();
+      var files = {};
+      for (var ri = 0; ri < defsR.length; ri++) {
+        if (!defsR[ri].file) continue;
+        files[path.resolve(process.cwd(), defsR[ri].file)] = true;
       }
+      Object.keys(files).forEach(function(fp) {
+        var u2 = lsp_path_to_uri(fp);
+        if (seenF[u2]) return;
+        seenF[u2] = true;
+        var body = (state.docs[u2] != null) ? state.docs[u2] : null;
+        if (body == null) {
+          try { body = fs.readFileSync(fp, "utf8"); } catch (e) { return; }
+        }
+        var edited = compiler.rename_qual(body, resolvedR.qual, String(newN));
+        if (edited === body) return;
+        changes.push({
+          textDocument: {uri: u2, version: null},
+          edits: [{range: lsp_full_range(body), newText: edited}]
+        });
+      });
     }
     result({documentChanges: changes});
     return {state: state, out: out};
@@ -735,36 +718,53 @@ async function lsp_handle(state, msg) {
   }
   if (method === "textDocument/references") {
     var offR = line_col_offset(text, pos.line, pos.character);
-    name = lsp_name_at(text, pos.line, pos.character);
-    if (!name) { result([]); return {state: state, out: out}; }
+    var resolvedRef = compiler.resolve_at(text, offR);
+    if (!resolvedRef) { result([]); return {state: state, out: out}; }
     var locs = [];
-    lsp_highlights(text, offR).forEach(function(h) {
-      locs.push({uri: uri, range: h.range});
-    });
     var infoR = compiler.ident_bindings(text);
-    var atR = compiler.ident_at(text, offR);
-    var global = false;
-    if (atR) {
-      for (var bi = 0; bi < infoR.toks.length; bi++) {
-        if (infoR.toks[bi].start === atR.start && infoR.bind_of[bi] === -1) { global = true; break; }
+    var parsedR = compiler.parse_module_headers(text);
+    var localsR = null;
+    for (var oi0 = 0; oi0 < infoR.toks.length; oi0++) {
+      if (resolvedRef.local) {
+        if (infoR.bind_of[oi0] !== resolvedRef.binder) continue;
+      } else {
+        var rr0 = compiler.resolve_at(text, infoR.toks[oi0].start, {info: infoR, parsed: parsedR});
+        if (!rr0 || rr0.qual !== resolvedRef.qual) continue;
       }
+      locs.push({
+        uri: uri,
+        range: {start: lsp_pos_at(text, infoR.toks[oi0].start), end: lsp_pos_at(text, infoR.toks[oi0].end)}
+      });
     }
-    if (global) {
-      var refs = scan_references(name);
-      for (var ri = 0; ri < refs.length; ri++) {
-        var fp = path.resolve(process.cwd(), refs[ri].file);
-        if (uri && lsp_path_to_uri(fp) === uri) continue;
-        var body;
-        try { body = fs.readFileSync(fp, "utf8"); } catch (e) { continue; }
+    if (!resolvedRef.local && resolvedRef.qual) {
+      var defsRef = scan_defs();
+      var seenU = {};
+      seenU[uri] = true;
+      var filesR = {};
+      for (var rj = 0; rj < defsRef.length; rj++) {
+        if (defsRef[rj].file) filesR[path.resolve(process.cwd(), defsRef[rj].file)] = true;
+      }
+      Object.keys(filesR).forEach(function(fp) {
+        var u2 = lsp_path_to_uri(fp);
+        if (seenU[u2]) return;
+        seenU[u2] = true;
+        var body = (state.docs[u2] != null) ? state.docs[u2] : null;
+        if (body == null) {
+          try { body = fs.readFileSync(fp, "utf8"); } catch (e) { return; }
+        }
         var other = compiler.ident_bindings(body);
+        var parsedO = compiler.parse_module_headers(body);
+        var preO = {info: other, parsed: parsedO};
         for (var oi = 0; oi < other.toks.length; oi++) {
-          if (other.toks[oi].name !== name || other.bind_of[oi] !== -1) continue;
+          if (other.bind_of[oi] !== -1) continue;
+          var rr = compiler.resolve_at(body, other.toks[oi].start, preO);
+          if (!rr || rr.qual !== resolvedRef.qual) continue;
           locs.push({
-            uri: lsp_path_to_uri(fp),
+            uri: u2,
             range: {start: lsp_pos_at(body, other.toks[oi].start), end: lsp_pos_at(body, other.toks[oi].end)}
           });
         }
-      }
+      });
     }
     result(locs);
     return {state: state, out: out};

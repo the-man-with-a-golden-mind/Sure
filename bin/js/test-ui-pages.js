@@ -153,6 +153,12 @@ function fire(listeners, type, msgAttr, opts) {
 
 function htmlHas(html, re) { return re.test(html); }
 
+var CORE_N = 19;
+function checkCoreEvents(label, listeners) {
+  var types = listeners.map(function(l) { return l.type; });
+  check(label + " events core", types.length === CORE_N && types.indexOf("error") < 0 && types.indexOf("scroll") >= 0 && types.indexOf("click") >= 0, "n=" + types.length + " " + types.join(","));
+}
+
 async function flush(n) {
   n = n == null ? 8 : n;
   for (var i = 0; i < n; i++) await new Promise(function(r) { setImmediate(r); });
@@ -210,7 +216,7 @@ function loadSrc(file) {
 {
   const p = loadPage(page("Sure.Ui.Counter.client.html"));
   const n0 = p.listeners.length;
-  check("counter events 122", n0 === 122, "n=" + n0);
+  checkCoreEvents("counter", p.listeners);
   p.sandbox.SureDom.mount(p.sandbox.module.exports["Sure.Ui.Counter.client"] || p.sandbox.module.exports);
   check("counter no double mount", p.listeners.length === n0, "n=" + p.listeners.length);
 }
@@ -257,6 +263,8 @@ function loadSrc(file) {
 {
   const p = loadPage(page("Sure.Ui.Counter.client.html"));
   check("counter mount 0", htmlHas(p.root.innerHTML, /data-sure-on-click="inc"/) && htmlHas(p.root.innerHTML, />0</), p.root.innerHTML.slice(0, 160));
+  fire(p.listeners, "error", "inc");
+  check("counter error ignored", htmlHas(p.root.innerHTML, />0</), p.root.innerHTML.slice(0, 160));
   fire(p.listeners, "click", "inc");
   check("counter inc 1", htmlHas(p.root.innerHTML, />1</), p.root.innerHTML.slice(0, 160));
   fire(p.listeners, "click", "nope");
@@ -291,7 +299,7 @@ function loadSrc(file) {
 // --- Echo ---
 {
   const p = loadPage(page("Sure.Ui.Echo.client.html"));
-  check("echo events 122", p.listeners.length === 122, "n=" + p.listeners.length);
+  checkCoreEvents("echo", p.listeners);
   check("echo mount", htmlHas(p.root.innerHTML, /data-sure-on-input="set"/) && htmlHas(p.root.innerHTML, /data-sure-on-click="clear"/), p.root.innerHTML.slice(0, 220));
   fire(p.listeners, "input", "set", { value: "hi" });
   check("echo set hi", htmlHas(p.root.innerHTML, />hi</) && htmlHas(p.root.innerHTML, /value="hi"/), p.root.innerHTML.slice(0, 220));
@@ -332,7 +340,7 @@ function loadSrc(file) {
 if (fs.existsSync(page("Html.Counter.client.html"))) {
   const p = loadPage(page("Html.Counter.client.html"));
   check("html client mount", htmlHas(p.root.innerHTML, /data-sure-on-click="inc"/), p.root.innerHTML.slice(0, 160));
-  check("html client events 122", p.listeners.length === 122, "n=" + p.listeners.length);
+  checkCoreEvents("html client", p.listeners);
   fire(p.listeners, "click", "inc");
   check("html client inc", htmlHas(p.root.innerHTML, />1</), p.root.innerHTML.slice(0, 160));
   const n0 = p.listeners.length;
@@ -356,7 +364,7 @@ if (fs.existsSync(page("Html.Counter.client.html"))) {
 {
   const p = loadPage(page("Sure.Ui.Probe.client.html"));
   check("probe mount empty", htmlHas(p.root.innerHTML, /data-sure-on-click="go"/) && (htmlHas(p.root.innerHTML, /<p><\/p>/) || htmlHas(p.root.innerHTML, /<p>\s*<\/p>/)), p.root.innerHTML.slice(0, 300));
-  check("probe events 122", p.listeners.length === 122, "n=" + p.listeners.length);
+  checkCoreEvents("probe", p.listeners);
   fire(p.listeners, "click", "go");
   check("probe push plus", htmlHas(p.root.innerHTML, />\+</), p.root.innerHTML.slice(0, 300));
   fire(p.listeners, "click", "nope");
@@ -525,10 +533,10 @@ Promise.resolve().then(async function() {
         return Promise.resolve({ text: function() { return Promise.resolve("ok"); } });
       }
     });
-    check("sheet events 122", sh.listeners.length === 122, "n=" + sh.listeners.length);
+    checkCoreEvents("sheet", sh.listeners);
     check("sheet daisy", htmlHas(sh.root.innerHTML, /navbar/) && htmlHas(sh.root.innerHTML, /badge/) && htmlHas(sh.root.innerHTML, /card /), sh.root.innerHTML.slice(0, 220));
     check("sheet header", htmlHas(sh.root.innerHTML, /Excel/) && htmlHas(sh.root.innerHTML, /data-sure-scroll/) && htmlHas(sh.root.innerHTML, /value="A"/), sh.root.innerHTML.slice(0, 280));
-    check("sheet no inline style", !htmlHas(sh.root.innerHTML, / style="/), sh.root.innerHTML.slice(0, 180));
+    check("sheet serialized units", htmlHas(sh.root.innerHTML, /w-\[/) || htmlHas(sh.root.innerHTML, /width:\d+px/), sh.root.innerHTML.slice(0, 180));
     check("sheet boot state", urls.length >= 1 && /\/sheet\/state/.test(urls[0]), JSON.stringify(urls));
     check("sheet empty no rows", rowCount(sh.root.innerHTML) === 0, "n=" + rowCount(sh.root.innerHTML));
     check("sheet sse open", sh.sources.length === 1 && sh.sources[0].url === "/sheet/rows", "n=" + sh.sources.length);
@@ -602,7 +610,7 @@ Promise.resolve().then(async function() {
         return Promise.resolve({ text: function() { return Promise.resolve("err junk"); } });
       }
     });
-    check("tweeter events 122", tw.listeners.length === 122, "n=" + tw.listeners.length);
+    checkCoreEvents("tweeter", tw.listeners);
     check("tweeter login card", htmlHas(tw.root.innerHTML, /Login/) && htmlHas(tw.root.innerHTML, /Register/) && htmlHas(tw.root.innerHTML, /card/), tw.root.innerHTML.slice(0, 220));
     check("tweeter no inline style", !htmlHas(tw.root.innerHTML, / style="/), tw.root.innerHTML.slice(0, 160));
     await flush();
@@ -652,6 +660,116 @@ Promise.resolve().then(async function() {
     check("tweeter restore home", htmlHas(tw2.root.innerHTML, /@ada/) && htmlHas(tw2.root.innerHTML, />hi</), tw2.root.innerHTML.slice(0, 280));
     check("tweeter restore feed", twRest.some(function(f) { return /\/tweeter\/feed/.test(f.url); }), JSON.stringify(twRest));
   } else ok("tweeter skip");
+
+  // Scroller node must survive a scroll redraw (innerHTML of the port, not the port itself).
+  {
+    const emit = require("./src/emit");
+    function el(tag) {
+      var n = {
+        tag: tag, tagName: String(tag).toUpperCase(), id: "", className: "", attrs: {}, childNodes: [], parentNode: null, parentElement: null,
+        scrollTop: 0, scrollLeft: 0, _html: "", isConnected: true,
+        getAttribute: function(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : (k === "id" ? this.id || null : null); },
+        setAttribute: function(k, v) { this.attrs[k] = String(v); },
+        appendChild: function(c) { c.parentNode = this; c.parentElement = this; this.childNodes.push(c); return c; },
+        removeChild: function(c) { this.childNodes = this.childNodes.filter(function(x) { return x !== c; }); c.parentNode = null; c.parentElement = null; return c; }
+      };
+      Object.defineProperty(n, "firstChild", { get: function() { return this.childNodes[0] || null; } });
+      Object.defineProperty(n, "innerHTML", {
+        get: function() { return this._html; },
+        set: function(html) {
+          this._html = String(html == null ? "" : html);
+          this.childNodes = [];
+          var re = /<div([^>]*data-sure-scroll="([^"]*)"[^>]*)>([\s\S]*?)<\/div>/;
+          var m = re.exec(this._html);
+          if (m) {
+            var s = el("div");
+            s.setAttribute("data-sure-scroll", m[2]);
+            s._html = m[3];
+            this.appendChild(s);
+          }
+        }
+      });
+      n.cloneNode = function(deep) {
+        var c = el(this.tag);
+        c.attrs = Object.assign({}, this.attrs);
+        c._html = this._html;
+        c.className = this.className;
+        c.scrollTop = this.scrollTop;
+        c.scrollLeft = this.scrollLeft;
+        if (deep) {
+          (this.childNodes || []).forEach(function(ch) { c.appendChild(ch.cloneNode ? ch.cloneNode(true) : ch); });
+        }
+        return c;
+      };
+      Object.defineProperty(n, "textContent", {
+        get: function() {
+          if (this.childNodes && this.childNodes.length) {
+            return this.childNodes.map(function(ch) { return ch.textContent || ch._html || ""; }).join("");
+          }
+          return this._html || "";
+        },
+        set: function(v) { this._html = String(v == null ? "" : v); }
+      });
+      n.querySelectorAll = function(sel) {
+        var out = [];
+        function walk(node) {
+          if (sel === "[data-sure-scroll]" && node.getAttribute("data-sure-scroll") != null) out.push(node);
+          (node.childNodes || []).forEach(walk);
+        }
+        walk(this);
+        return out;
+      };
+      return n;
+    }
+    const root = el("div");
+    root.id = "sure-root";
+    const listeners = [];
+    const document = {
+      getElementById: function(id) { return id === "sure-root" ? root : null; },
+      createElement: function(tag) { return el(tag); },
+      addEventListener: function(type, fn) { listeners.push({ type: type, fn: fn }); },
+      body: { appendChild: function() {} }
+    };
+    const sandbox = {
+      document: document, module: { exports: {} }, console: console,
+      setTimeout: function() {}, setInterval: function() { return 1; }, clearInterval: function() {},
+      EventSource: function() {}, JSON: JSON, Number: Number, String: String, Object: Object, Array: Array
+    };
+    sandbox.globalThis = sandbox;
+    vm.runInNewContext(emit.sure_dom_mount_src(), sandbox, { timeout: 5000 });
+    var draws = 0;
+    var rows = "r0";
+    sandbox.SureDom.mount({
+      _: "Sure.Ui.Client.new",
+      init: 0,
+      draw: function(m) {
+        draws += 1;
+        return '<div data-sure-scroll="1"><span>' + rows + "</span></div>";
+      },
+      step: function(raw) {
+        return function(m) {
+          var val = String(raw).split("\n")[3] || "0";
+          if (Number(val) >= 24) rows = "r1";
+          return { _: "Pair.new", fst: m + 1, snd: "" };
+        };
+      },
+      listen: function() { return ""; },
+      boot: ""
+    });
+    var port = root.querySelectorAll("[data-sure-scroll]")[0];
+    check("scroll port mounted", !!(port && port.getAttribute("data-sure-scroll") === "1"), "n=" + root.querySelectorAll("[data-sure-scroll]").length);
+    port.scrollTop = 10;
+    var nDraw0 = draws;
+    fire(listeners, "scroll", "scroll", { scrollTop: 10 });
+    check("scroll same node", root.querySelectorAll("[data-sure-scroll]")[0] === port, "");
+    check("scrollTop kept", port.scrollTop === 10, "t=" + port.scrollTop);
+    port.scrollTop = 48;
+    fire(listeners, "scroll", "scroll", { scrollTop: 48 });
+    check("scroll window patch", rows === "r1", rows);
+    check("scroll still same node", root.querySelectorAll("[data-sure-scroll]")[0] === port, "");
+    check("scrollTop kept after patch", port.scrollTop === 48, "t=" + port.scrollTop);
+    check("scroll drew", draws > nDraw0, "draws=" + draws);
+  }
 
   if (fail) process.exit(1);
   console.log("page harness passed");

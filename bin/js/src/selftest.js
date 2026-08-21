@@ -5,6 +5,7 @@ module.exports = function make(deps) {
   var get_ORIG_CWD = deps.get_ORIG_CWD || function() { return ORIG_CWD; };
   var set_ORIG_CWD = deps.set_ORIG_CWD || function(v) { ORIG_CWD = v; };
   var SURE_DOM_EVENTS = deps.SURE_DOM_EVENTS;
+  var SURE_DOM_CORE_EVENTS = deps.SURE_DOM_CORE_EVENTS || [];
   var agent_check_code = deps.agent_check_code;
   var agent_dispatch = deps.agent_dispatch;
   var bench_stats = deps.bench_stats;
@@ -610,14 +611,20 @@ async function run_prove_edges() {
     console.log("fail html wrap empty"); failed += 1;
   } else console.log("ok   html wrap empty");
   var mount = sure_dom_mount_src();
-  if (mount.indexOf("parentElement") < 0 || mount.indexOf("catch") < 0 || mount.indexOf("Sure.Ui.Client.new") < 0 || mount.indexOf("EventSource") < 0 || mount.indexOf("__sureMounted") < 0 || mount.indexOf("data-sure-scroll") < 0 || mount.indexOf("scrollTop") < 0 || mount.indexOf("FileReader") < 0 || mount.indexOf("POST") < 0 || mount.indexOf("same-origin") < 0 || mount.indexOf("applyPx") < 0 || mount.indexOf("minWidth") < 0) {
+  if (mount.indexOf("parentElement") < 0 || mount.indexOf("catch") < 0 || mount.indexOf("Sure.Ui.Client.new") < 0 || mount.indexOf("EventSource") < 0 || mount.indexOf("__sureMounted") < 0 || mount.indexOf("data-sure-scroll") < 0 || mount.indexOf("scrollTop") < 0 || mount.indexOf("FileReader") < 0 || mount.indexOf("POST") < 0 || mount.indexOf("same-origin") < 0 || mount.indexOf("applyPx") < 0 || mount.indexOf("minWidth") < 0 || mount.indexOf("surePatch") < 0 || mount.indexOf("sureScheduleMake") < 0 || mount.indexOf("passive") < 0) {
     console.log("fail mount harden"); failed += 1;
   } else console.log("ok   mount harden");
+  if (SURE_DOM_CORE_EVENTS.length !== 19 || SURE_DOM_CORE_EVENTS.indexOf("error") >= 0 || SURE_DOM_CORE_EVENTS.indexOf("scroll") < 0) {
+    console.log("fail core events " + SURE_DOM_CORE_EVENTS.length); failed += 1;
+  } else console.log("ok   core events 19");
+  if (mount.indexOf('"error"') >= 0 || mount.indexOf("'error'") >= 0 || mount.indexOf("visibilitychange") >= 0) {
+    console.log("fail mount binds error"); failed += 1;
+  } else console.log("ok   mount skips error");
   if (sure_emit_file("../etc") !== "" || sure_emit_file("a/b") !== "" || sure_emit_html_file("..") !== "") {
     console.log("fail emit path traversal"); failed += 1;
   } else console.log("ok   emit path traversal");
   var page = sure_html_wrap("Main", "module.exports={};");
-  if (!page || page.indexOf("sure-root") < 0 || page.indexOf("SureDom.mount") < 0 || page.indexOf("\"click\"") < 0 || page.indexOf("\"wheel\"") < 0 || page.indexOf("<style>") < 0 || page.indexOf("overflow:auto") < 0 || page.indexOf("cdn.tailwindcss.com") >= 0 || page.indexOf("daisyui") >= 0) {
+  if (!page || page.indexOf("sure-root") < 0 || page.indexOf("SureDom.mount") < 0 || page.indexOf("\"click\"") < 0 || page.indexOf("\"wheel\"") < 0 || page.indexOf("\"scroll\"") < 0 || page.indexOf("<style>") < 0 || page.indexOf("overflow:auto") < 0 || page.indexOf("cdn.tailwindcss.com") >= 0 || page.indexOf("daisyui") >= 0 || page.indexOf("visibilitychange") >= 0) {
     console.log("fail html wrap events"); failed += 1;
   } else console.log("ok   html wrap events");
   if (SURE_DOM_EVENTS.length !== 122) {
@@ -638,7 +645,7 @@ async function run_prove_edges() {
       console.log("fail Counter emit too slow " + dt + "ms"); failed += 1;
     } else console.log("ok   compile Html.Counter.client");
     var page_c = sure_html_wrap("Html.Counter.client", js_c);
-    if (!page_c || page_c.indexOf("SureDom.mount") < 0 || page_c.indexOf("visibilitychange") < 0 || page_c.indexOf("\"click\"") < 0) {
+    if (!page_c || page_c.indexOf("SureDom.mount") < 0 || page_c.indexOf("visibilitychange") >= 0 || page_c.indexOf("\"click\"") < 0 || page_c.indexOf("surePatch") < 0) {
       console.log("fail html counter page"); failed += 1;
     } else console.log("ok   html counter page");
   } catch (e) {

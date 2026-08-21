@@ -1,4 +1,8 @@
 **/node_modules
+bin/js/lib/
+bin/js/perf/last.json
+bin/js/perf/browser.last.json
+bin/js/perf/frameworks.last.json
 bin/js/bun.lock
 scripts/
 *.class

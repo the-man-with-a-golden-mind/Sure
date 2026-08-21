@@ -12,7 +12,7 @@ Truth pass (audit):
 - Incremental build cache hashes `compiler.js`, `host-schema.js`, `gen-host.js`, the checker blob, FormCore, stdlib, lockfile, every `source-directories` entry, and transitive dependency sources.
 - Checker def cache is one record per name (source hash + blob key). `Synth.one` writes it. Empty/junk records are none. `sure test` runs `Main` in-process.
 - `sure install` materializes `sure.lock` git revisions (direct and lock-listed transitive names) instead of cloning latest HEAD.
-- HTTP request headers are sent. `Crypto.random` does not fall back to `Math.random`. WebSocket client frames are masked. Generated HTML loads Tailwind + daisyUI. `File.bracket` is acquire / use / release. `Stream.take` is a pull stream (`IO<List<A>>`), not `List.take`.
+- HTTP request headers are sent. `Crypto.random` does not fall back to `Math.random`. WebSocket client frames are masked. Generated HTML inlines layout CSS (no Tailwind/daisyUI CDN). Web examples load those themselves. `File.bracket` is acquire / use / release. `Stream.take` is a pull stream (`IO<List<A>>`), not `List.take`.
 - `Host.decode` is generated from `host-schema.js` with encode. It accepts only tagged `0\\n` / `1\\n`. Empty and untagged payloads are `Host.Err.empty` / `Host.Err.bad_tag`. String `IO.*` ops take `IO.tagged.payload` (success body, else `""`).
 - RFC 6455 client frames and handshake are `vendor/formcore-js/ws-frames.js` and are bounded-tested. `./bin/sure` skips a Node binary that cannot start (broken ICU) and honors `SURE_NODE`.
 - `Proc.exec(file, args)` / `Proc.run(file, args)` spawn argv with `shell: false`. `Proc.unsafe.shell(cmd)` is the shell-string hatch.

@@ -65,6 +65,13 @@ document(body: String): String
   | body
   | "</body></html>"
 
+with_cdn(html: String): String
+  if String.includes(html, "cdn.tailwindcss.com") then html
+  else
+    let cdn = "<script src=\"https://cdn.tailwindcss.com\"></script><link href=\"https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css\" rel=\"stylesheet\" type=\"text/css\">"
+    let parts = String.split(html, "</title>")
+    List.head_with_default<String>("", parts) | "</title>" | cdn | String.join("</title>", List.drop<String>(1, parts))
+
 page_html: String
   document(Sure.Ui.draw_of<Model>(client, init))
 
@@ -88,7 +95,7 @@ send_page(id: String): IO<Unit>
       get f = File.read(p.value)
       case f {
         err: Http.Server.reply_ex(id, 200, "text/html; charset=utf-8", missing_html)
-        ok: Http.Server.reply_ex(id, 200, "text/html; charset=utf-8", f.value)
+        ok: Http.Server.reply_ex(id, 200, "text/html; charset=utf-8", with_cdn(f.value))
       }
     }
   }

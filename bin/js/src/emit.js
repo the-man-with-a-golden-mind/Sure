@@ -73,7 +73,7 @@ function sure_dom_mount_src() {
     + "function targetOf(e){var t=e.target;while(t&&t!==document&&!(t.getAttribute&&t.getAttribute('data-sure-on-'+e.type)!=null)){t=t.parentElement;}return t;}"
     + "function wireOf(e,msg,t){if(e.type==='submit'||e.type==='mousedown')try{e.preventDefault();}catch(_p){}var val=t.value==null?'':String(t.value);if(e.type==='scroll'){try{val=String((t.scrollTop|0)||0);}catch(_s){val='0';}}return [e.type,msg,t.id||'',val,e.key||'',e.button||0,(e.clientX|0)||0,(e.clientY|0)||0,e.altKey?1:0,e.ctrlKey?1:0,e.metaKey?1:0,e.shiftKey?1:0,t.checked?1:0].join('\\n');}"
     + applyPx.toString()
-    + "function keepScroll(fn){var saved=[];try{var xs=root.querySelectorAll?root.querySelectorAll('[data-sure-scroll]'):[];for(var i=0;i<xs.length;i++)saved.push({k:(xs[i].getAttribute&&xs[i].getAttribute('data-sure-scroll'))||String(i),t:xs[i].scrollTop||0,l:xs[i].scrollLeft||0});}catch(_k){}try{fn();}catch(_d){}applyPx(root);try{if(typeof tailwind!=='undefined'&&tailwind.refresh)tailwind.refresh();}catch(_t){}try{var ys=root.querySelectorAll?root.querySelectorAll('[data-sure-scroll]'):[];for(var j=0;j<ys.length;j++){var k=(ys[j].getAttribute&&ys[j].getAttribute('data-sure-scroll'))||String(j);for(var s=0;s<saved.length;s++){if(saved[s].k===k){ys[j].scrollTop=saved[s].t;ys[j].scrollLeft=saved[s].l;break;}}}}catch(_r){}}"
+    + "function keepScroll(fn){var saved=[];try{var xs=root.querySelectorAll?root.querySelectorAll('[data-sure-scroll]'):[];for(var i=0;i<xs.length;i++)saved.push({k:(xs[i].getAttribute&&xs[i].getAttribute('data-sure-scroll'))||String(i),t:xs[i].scrollTop||0,l:xs[i].scrollLeft||0});}catch(_k){}try{fn();}catch(_d){}applyPx(root);try{var ys=root.querySelectorAll?root.querySelectorAll('[data-sure-scroll]'):[];for(var j=0;j<ys.length;j++){var k=(ys[j].getAttribute&&ys[j].getAttribute('data-sure-scroll'))||String(j);for(var s=0;s<saved.length;s++){if(saved[s].k===k){ys[j].scrollTop=saved[s].t;ys[j].scrollLeft=saved[s].l;break;}}}}catch(_r){}}"
     + "if(app._==='Html.Client.new'){"
     + "var model=app.init;"
     + "function draw(){keepScroll(function(){root.innerHTML=app.draw(model);});}"
@@ -121,17 +121,12 @@ function sure_html_css() {
     + ".min-h-screen{min-height:100vh}";
 }
 
-function sure_html_cdn() {
-  return "<script src=\"https://cdn.tailwindcss.com\"></script>"
-    + "<link href=\"https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css\" rel=\"stylesheet\" type=\"text/css\">";
-}
-
 function sure_html_wrap(term, js) {
   if (!sure_emit_safe(term) || !js) return "";
   var title = String(term).replace(/[^A-Za-z0-9._-]/g, "") || "Sure";
-  return "<!DOCTYPE html><html data-theme=\"light\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + title
-    + "</title>" + sure_html_cdn() + "<style>" + sure_html_css() + "</style>"
-    + "</head><body class=\"bg-base-200\"><div id=\"sure-root\"></div><script>\n"
+  return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + title
+    + "</title><style>" + sure_html_css() + "</style>"
+    + "</head><body><div id=\"sure-root\"></div><script>\n"
     + "var module={exports:{}};\n" + js + "\n" + sure_dom_mount_src() + "\n"
     + "SureDom.mount(module.exports[" + JSON.stringify(term) + "]||module.exports);\n"
     + "</script></body></html>\n";
@@ -144,7 +139,6 @@ module.exports = {
     SURE_DOM_EVENTS: SURE_DOM_EVENTS,
     sure_dom_mount_src: sure_dom_mount_src,
     sure_html_css: sure_html_css,
-    sure_html_cdn: sure_html_cdn,
     sure_html_wrap: sure_html_wrap,
     applyPx: applyPx
 };

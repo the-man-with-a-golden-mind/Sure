@@ -555,7 +555,7 @@ function print_help_topic(topic) {
     console.log("  Sure.Sheet.client     # Excel grid, virtual scroll, 10000 SSE rows");
     console.log("  Sure.Tweeter.client   # login, session, tweets, file upload");
     console.log("");
-    console.log("  sure build --html Html.Counter.client   # Tailwind + daisyUI in the page");
+    console.log("  sure build --html Html.Counter.client");
     console.log("  sure build --html Sure.Ui.Tick.client");
     console.log("  sure build --html Sure.Sheet.client");
     console.log("  sure run Sure.Sheet.serve");

@@ -8,7 +8,7 @@ Three layers, one language:
 | `Sure.Ui` | Elm-like: `sandbox` or `element` with `Cmd` / `Sub` | `sure build --html Sure.Ui.Tick.client` |
 | `Sure.Ssr` | Server HTML, SSE, routes | `sure run` a `*.serve` term |
 
-Open the HTML file in a browser. Clicks and input call `step` in the page. Generated HTML loads Tailwind (Play CDN) and daisyUI 4. Views use those class names only (`navbar`, `card`, `btn`, `w-[Npx]`, …). `w-[Npx]` / `h-[Npx]` / `top-[Npx]` are also applied after each draw so the sheet lays out before JIT.
+Open the HTML file in a browser. Clicks and input call `step` in the page. Generated HTML inlines a small layout stylesheet; it does not load Tailwind or daisyUI. The **examples** (`excel`, `todo`, `ui`, `tweeter`, `ssr`, `files`, `walk`) load Tailwind + daisyUI in their own `document()`. `w-[Npx]` / `h-[Npx]` / `top-[Npx]` are applied after each draw.
 
 ## Bench
 

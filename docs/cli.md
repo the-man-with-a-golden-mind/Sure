@@ -19,7 +19,7 @@ sure help env | cfg | ssr | ui | web
 | `sure prove [Term…]` | Prove completed equality theorems only |
 | `sure prove --json Term` | `proved` is true only if every result is a completed proof |
 | `sure build [Term]` | Prove theorems, then write `dist/<Term>.js` (tree-shaken) |
-| `sure build --html [Term]` | HTML page with Tailwind + daisyUI |
+| `sure build --html [Term]` | HTML page with inlined layout CSS |
 | `sure emit [Term]` | Same as `build` |
 | `sure run [Term]` | Emit `dist/<Term>.js` if needed, then spawn it |
 | `sure --bun run [Term]` | Run emitted JS with Bun |

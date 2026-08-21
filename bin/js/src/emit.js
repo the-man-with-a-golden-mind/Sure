@@ -99,6 +99,13 @@ function sure_dom_mount(app) {
     }
     return t && t.getAttribute ? t : null;
   }
+  function selectOnFocus(e) {
+    if (!e || e.type !== "focus") return;
+    var ft = e.target;
+    if (ft && (ft.tagName === "INPUT" || ft.tagName === "TEXTAREA") && typeof ft.select === "function") {
+      try { ft.select(); } catch (_s) {}
+    }
+  }
   function wireOf(e, msg, t) {
     if (e.type === "submit" || e.type === "mousedown") try { e.preventDefault(); } catch (_p) {}
     var val = t.value == null ? "" : String(t.value);
@@ -143,6 +150,7 @@ function sure_dom_mount(app) {
     }
     function onEv(e) {
       try {
+        selectOnFocus(e);
         var t = targetOf(e);
         if (!t) return;
         var msg = t.getAttribute("data-sure-on-" + e.type);
@@ -251,6 +259,7 @@ function sure_dom_mount(app) {
   }
   function onEv(e) {
     try {
+      selectOnFocus(e);
       var t = targetOf(e);
       if (!t) return;
       var msg = t.getAttribute("data-sure-on-" + e.type);

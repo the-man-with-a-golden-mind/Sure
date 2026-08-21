@@ -478,6 +478,7 @@ send_page(id: String): IO<Unit>
 handle(req: Http.Server.Req): IO<Unit>
   open req
   if is_page(req.url) then send_page(req.id)
+  else if String.eql(req.url, "/favicon.ico") then Http.Server.reply_ex(req.id, 204, "image/x-icon", "")
   else if is_state(req.url) then
     IO {
       get body = load_state

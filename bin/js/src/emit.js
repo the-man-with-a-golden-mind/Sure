@@ -91,6 +91,7 @@ function sure_dom_mount(app) {
   var pass = { scroll: 1, wheel: 1, touchstart: 1, touchmove: 1, touchend: 1 };
   var drawing = false;
   var nested = null;
+  var lastDrawnRow = -1;
   function targetOf(e) {
     var t = e && e.target;
     if (!t || typeof t.getAttribute !== "function") return null;
@@ -114,9 +115,67 @@ function sure_dom_mount(app) {
     }
     return [e.type, msg, t.id || "", val, e.key || "", e.button || 0, (e.clientX | 0) || 0, (e.clientY | 0) || 0, e.altKey ? 1 : 0, e.ctrlKey ? 1 : 0, e.metaKey ? 1 : 0, e.shiftKey ? 1 : 0, t.checked ? 1 : 0].join("\n");
   }
+  function scroller() {
+    try { return root.querySelector ? root.querySelector("[data-sure-scroll]") : null; }
+    catch (_q) { return null; }
+  }
+  function markDrawnRow() {
+    try {
+      var p = scroller();
+      var rh = p ? Number(p.getAttribute("data-sure-row-h") || 0) : 0;
+      if (!p || !(rh > 0)) return;
+      var y = p.getAttribute("data-sure-y");
+      var top = y != null && y !== "" ? Number(y) : (p.scrollTop | 0);
+      lastDrawnRow = (top / rh) | 0;
+    } catch (_m) {}
+  }
+  function syncScroll() {
+    try {
+      var p = scroller();
+      if (!p) return;
+      var y = p.getAttribute("data-sure-y");
+      if (y == null || y === "") return;
+      var n = Number(y);
+      if (!(n >= 0)) return;
+      if ((p.scrollTop | 0) !== (n | 0)) p.scrollTop = n | 0;
+    } catch (_y) {}
+  }
+  function afterDraw() {
+    syncScroll();
+    markDrawnRow();
+  }
+  function skipRow(t) {
+    if (!t) return false;
+    var rh = Number(t.getAttribute("data-sure-row-h") || 0);
+    if (!(rh > 0)) return false;
+    var row = ((t.scrollTop | 0) / rh) | 0;
+    return row === lastDrawnRow;
+  }
+  function navKey(e) {
+    if (!e || e.type !== "keydown" || !e.key) return false;
+    return e.key.indexOf("Arrow") === 0 || e.key === "Enter" || e.key === "Tab";
+  }
+  function prepEv(e) {
+    selectOnFocus(e);
+    var t = targetOf(e);
+    if (!t) return null;
+    var msg = t.getAttribute("data-sure-on-" + e.type);
+    if (msg == null) return null;
+    if (navKey(e)) {
+      try { e.preventDefault(); } catch (_k) {}
+      if (e.target && e.target.tagName === "INPUT") {
+        try { e.target.blur(); } catch (_b) {}
+      }
+    }
+    return { t: t, raw: wireOf(e, msg, t), skip: e.type === "scroll" && skipRow(t) };
+  }
   function drawHtml(html) {
     html = surePxHtml(String(html == null ? "" : html));
     surePatch(root, html, document, applyPx);
+    try {
+      var af = root.querySelector ? root.querySelector("[data-sure-autofocus]") : null;
+      if (af && af.focus && document.activeElement !== af) af.focus();
+    } catch (_f) {}
   }
   function bind(onEv) {
     for (var i = 0; i < ev.length; i++) {
@@ -127,41 +186,45 @@ function sure_dom_mount(app) {
     }
   }
   var sched;
-  function onHot(raw, apply) {
+  function onHot(raw, skip, applyRaw) {
     if (!sched) {
       sched = sureScheduleMake({
         apply: function(p) {
           if (drawing) { nested = p; return; }
-          apply(p);
+          applyRaw(p.r, p.s);
         }
       });
     }
-    sched.schedule(raw);
+    sched.schedule({ r: raw, s: skip });
+  }
+  function finish(applyRaw) {
+    if (nested != null) {
+      var n = nested;
+      nested = null;
+      applyRaw(n.r, n.s);
+    }
   }
   if (app._ === "Html.Client.new") {
     var model = app.init;
     function draw() { try { drawHtml(app.draw(model)); } catch (_d) {} }
-    function apply(raw) {
+    function apply(raw, skip) {
       drawing = true;
       model = app.step(raw)(model);
-      draw();
+      if (!skip) { draw(); afterDraw(); }
       drawing = false;
-      if (nested != null) { var n = nested; nested = null; apply(n); }
+      finish(apply);
     }
     function onEv(e) {
       try {
-        selectOnFocus(e);
-        var t = targetOf(e);
-        if (!t) return;
-        var msg = t.getAttribute("data-sure-on-" + e.type);
-        if (msg == null) return;
-        var raw = wireOf(e, msg, t);
-        if (hot[e.type]) { onHot(raw, apply); return; }
-        apply(raw);
+        var g = prepEv(e);
+        if (!g) return;
+        if (hot[e.type]) { onHot(g.raw, g.skip, apply); return; }
+        apply(g.raw, false);
       } catch (_e) {}
     }
     bind(onEv);
     draw();
+    afterDraw();
     return;
   }
   if (app._ !== "Sure.Ui.Client.new") return;
@@ -247,25 +310,26 @@ function sure_dom_mount(app) {
     } catch (_g) {}
     depth--;
   }
-  function apply(raw) {
+  function apply(raw, skip) {
     drawing = true;
     var p = pairOf(app.step(raw)(model));
     model = p.fst;
-    draw();
-    runCmd(p.snd || "");
-    applySub(app.listen(model));
+    if (!skip) {
+      draw();
+      afterDraw();
+      runCmd(p.snd || "");
+      applySub(app.listen(model));
+    }
     drawing = false;
-    if (nested != null) { var n = nested; nested = null; apply(n); }
+    finish(apply);
   }
   function onEv(e) {
     try {
-      selectOnFocus(e);
-      var t = targetOf(e);
-      if (!t) return;
-      var msg = t.getAttribute("data-sure-on-" + e.type);
-      if (msg == null) return;
-      if ((e.type === "change" || e.type === "input") && t.files && t.files[0]) {
-        var f = t.files[0];
+      var g = prepEv(e);
+      if (!g) return;
+      if ((e.type === "change" || e.type === "input") && g.t.files && g.t.files[0]) {
+        var msg = g.t.getAttribute("data-sure-on-" + e.type);
+        var f = g.t.files[0];
         if (!f || !f.size) { go("change", msg, ""); return; }
         try {
           var fr = new FileReader();
@@ -275,13 +339,13 @@ function sure_dom_mount(app) {
         } catch (_r) { go("change", msg, ""); }
         return;
       }
-      var raw = wireOf(e, msg, t);
-      if (hot[e.type]) { onHot(raw, apply); return; }
-      apply(raw);
+      if (hot[e.type]) { onHot(g.raw, g.skip, apply); return; }
+      apply(g.raw, false);
     } catch (_e) {}
   }
   bind(onEv);
   draw();
+  afterDraw();
   try { runCmd(app.boot || ""); applySub(app.listen(model)); } catch (_b) {}
 }
 

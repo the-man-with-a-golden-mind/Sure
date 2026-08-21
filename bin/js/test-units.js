@@ -103,6 +103,8 @@ check("px html", /style="width:24px"/.test(px_style.surePxHtml("<div class=\"h-6
 var mount = emit.sure_dom_mount_src();
 check("mount patch", mount.indexOf("surePatch") >= 0 && mount.indexOf("sureScheduleMake") >= 0);
 check("mount no error", mount.indexOf('"error"') < 0 && mount.indexOf("visibilitychange") < 0);
+check("mount skip snapshot", mount.indexOf("lastScrollRow") < 0 && mount.indexOf("lastDrawnRow") >= 0 && mount.indexOf("{ r: raw, s: skip }") >= 0);
+check("mount sure-y", mount.indexOf("data-sure-y") >= 0);
 check("wrap no cdn", emit.sure_html_wrap("Main", "module.exports={};").indexOf("cdn.tailwindcss.com") < 0);
 var patchSkip = dom_patch.surePatch({innerHTML: "", __sureHtml: "<p>x</p>"}, "<p>x</p>", {createElement: function(){ return {}; }});
 check("patch skip unchanged", patchSkip.skipped === true);
@@ -154,6 +156,130 @@ check("patch skip unchanged", patchSkip.skipped === true);
   want.appendChild(wp);
   var okm = dom_patch.morphChildren(live, want, {createTextNode: function(t) { return {textContent: t}; }});
   check("morph in place", okm && live.childNodes[0] === port && port.scrollTop === 48);
+})();
+
+(function() {
+  var vm = require("vm");
+  var frames = [];
+  function node(tag) {
+    var n = { tag: tag, tagName: String(tag).toUpperCase(), attrs: {}, childNodes: [], scrollTop: 0, scrollLeft: 0, id: "", parentElement: null, parentNode: null, isConnected: true, value: "", className: "", _html: "" };
+    n.getAttribute = function(k) { return Object.prototype.hasOwnProperty.call(n.attrs, k) ? n.attrs[k] : null; };
+    n.setAttribute = function(k, v) { n.attrs[k] = String(v); };
+    n.removeAttribute = function(k) { delete n.attrs[k]; };
+    n.appendChild = function(c) { if (c.parentNode) c.parentNode.removeChild(c); c.parentNode = n; c.parentElement = n; n.childNodes.push(c); return c; };
+    n.removeChild = function(c) { n.childNodes = n.childNodes.filter(function(x) { return x !== c; }); c.parentNode = null; c.parentElement = null; return c; };
+    n.insertBefore = function(c, ref) {
+      if (c.parentNode) c.parentNode.removeChild(c);
+      c.parentNode = n; c.parentElement = n;
+      if (!ref) { n.childNodes.push(c); return c; }
+      var i = n.childNodes.indexOf(ref);
+      n.childNodes.splice(i < 0 ? n.childNodes.length : i, 0, c);
+      return c;
+    };
+    n.cloneNode = function(deep) {
+      var c = node(n.tag);
+      c.attrs = Object.assign({}, n.attrs);
+      c._html = n._html;
+      c.scrollTop = n.scrollTop;
+      if (deep) n.childNodes.forEach(function(ch) { c.appendChild(ch.cloneNode ? ch.cloneNode(true) : ch); });
+      return c;
+    };
+    n.querySelector = function(sel) {
+      var hit = null;
+      function walk(el) {
+        if (hit || !el || !el.getAttribute) return;
+        if (sel === "[data-sure-scroll]" && el.getAttribute("data-sure-scroll") != null) hit = el;
+        if (sel === "[data-sure-autofocus]" && el.getAttribute("data-sure-autofocus") != null) hit = el;
+        (el.childNodes || []).forEach(walk);
+      }
+      walk(n);
+      return hit;
+    };
+    n.querySelectorAll = function(sel) {
+      var out = [];
+      function walk(el) {
+        if (!el || !el.getAttribute) return;
+        if (sel === "[data-sure-scroll]" && el.getAttribute("data-sure-scroll") != null) out.push(el);
+        (el.childNodes || []).forEach(walk);
+      }
+      walk(n);
+      return out;
+    };
+    n.focus = function() {};
+    Object.defineProperty(n, "firstChild", { get: function() { return n.childNodes[0] || null; } });
+    Object.defineProperty(n, "nextSibling", { get: function() {
+      if (!n.parentNode) return null;
+      var xs = n.parentNode.childNodes;
+      var i = xs.indexOf(n);
+      return i >= 0 ? xs[i + 1] || null : null;
+    } });
+    Object.defineProperty(n, "innerHTML", {
+      get: function() { return n._html; },
+      set: function(html) {
+        n._html = String(html == null ? "" : html);
+        n.childNodes = [];
+        var s = node("div");
+        s.setAttribute("data-sure-scroll", "1");
+        s.setAttribute("data-sure-row-h", "24");
+        s.setAttribute("data-sure-on-scroll", "scroll");
+        var ym = /data-sure-y="([^"]*)"/.exec(n._html);
+        if (ym) s.setAttribute("data-sure-y", ym[1]);
+        var rm = /data-sure-row="([^"]*)"/.exec(n._html);
+        if (rm) s.setAttribute("data-sure-row", rm[1]);
+        n.appendChild(s);
+      }
+    });
+    return n;
+  }
+  var root = node("div");
+  root.id = "sure-root";
+  var listeners = [];
+  var document = {
+    getElementById: function(id) { return id === "sure-root" ? root : null; },
+    createElement: function(tag) { return node(tag); },
+    createTextNode: function(t) { return { textContent: t, nodeValue: t }; },
+    addEventListener: function(type, fn) { listeners.push({ type: type, fn: fn }); },
+    body: { appendChild: function() {} },
+    activeElement: null
+  };
+  var sandbox = {
+    document: document, module: { exports: {} }, console: console,
+    requestAnimationFrame: function(cb) { frames.push(cb); return 1; },
+    setTimeout: function() {}, setInterval: function() { return 1; }, clearInterval: function() {},
+    EventSource: function() {}, Number: Number, String: String, Object: Object, Array: Array
+  };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(emit.sure_dom_mount_src(), sandbox, { timeout: 5000 });
+  var drawn = [];
+  sandbox.SureDom.mount({
+    _: "Sure.Ui.Client.new",
+    init: 0,
+    draw: function(m) {
+      drawn.push(m);
+      var row = (m / 24) | 0;
+      return '<div data-sure-scroll="1" data-sure-row-h="24" data-sure-y="' + m + '" data-sure-row="' + row + '"></div>';
+    },
+    step: function(raw) {
+      return function() {
+        var val = Number(String(raw).split("\n")[3] || "0");
+        return { _: "Pair.new", fst: val, snd: "" };
+      };
+    },
+    listen: function() { return ""; },
+    boot: ""
+  });
+  var port = root.querySelector("[data-sure-scroll]");
+  function fireScroll(top) {
+    port.scrollTop = top;
+    var e = { type: "scroll", target: port, preventDefault: function() {}, key: "", button: 0, clientX: 0, clientY: 0, altKey: 0, ctrlKey: 0, metaKey: 0, shiftKey: 0 };
+    listeners.filter(function(l) { return l.type === "scroll"; }).forEach(function(l) { l.fn(e); });
+  }
+  fireScroll(10);
+  fireScroll(3000);
+  fireScroll(3012);
+  check("hot coalesced", frames.length === 1, "frames=" + frames.length);
+  if (frames[0]) frames[0]();
+  check("jump drew", drawn.length === 2 && drawn[1] === 3012, JSON.stringify(drawn));
 })();
 
 // dual-run ReScript if present

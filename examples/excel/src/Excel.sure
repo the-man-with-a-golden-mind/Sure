@@ -9,7 +9,7 @@ type Drag {
 }
 
 type Model {
-  new(scroll: Nat, widths: List<Nat>, drag: Drag, cells: Map<String>)
+  new(scroll: Nat, widths: List<Nat>, drag: Drag, cells: Map<String>, row: Nat, col: Nat)
 }
 
 port: Nat
@@ -52,7 +52,7 @@ widths_new: List<Nat>
   widths_new.go(cols, [])
 
 init: Model
-  Model.new(0, widths_new, Drag.none, Map.new<String>)
+  Model.new(0, widths_new, Drag.none, Map.new<String>, 0, 0)
 
 cell_key(row: Nat, col: Nat): String
   Nat.show(row) | ":" | Nat.show(col)
@@ -66,21 +66,27 @@ cell_get(row: Nat, col: Nat, cells: Map<String>): String
 cell_set(row: Nat, col: Nat, text: String, cells: Map<String>): Map<String>
   Map.set<String>(cell_key(row, col), text, cells)
 
+pair_tail(msg: String, n: Nat): Maybe<Pair<Nat, Nat>>
+  let rest = String.drop(n, msg)
+  let xs = String.split(rest, "-")
+  let a = List.head_with_default<String>("", xs)
+  let b = List.head_with_default<String>("", List.drop<String>(1, xs))
+  case Parse.nat(a) as r {
+    none: none
+    some:
+      case Parse.nat(b) as c {
+        none: none
+        some: some(Pair.new<Nat, Nat>(r.value, c.value))
+      }
+  }
+
 set_of(msg: String): Maybe<Pair<Nat, Nat>>
   if Bool.not(String.starts_with(msg, "set-")) then none
-  else
-    let rest = String.drop(4, msg)
-    let xs = String.split(rest, "-")
-    let a = List.head_with_default<String>("", xs)
-    let b = List.head_with_default<String>("", List.drop<String>(1, xs))
-    case Parse.nat(a) as r {
-      none: none
-      some:
-        case Parse.nat(b) as c {
-          none: none
-          some: some(Pair.new<Nat, Nat>(r.value, c.value))
-        }
-    }
+  else pair_tail(msg, 4)
+
+sel_of(msg: String): Maybe<Pair<Nat, Nat>>
+  if Bool.not(String.starts_with(msg, "sel-")) then none
+  else pair_tail(msg, 4)
 
 letter(i: Nat): String
   case List.get<String>(i, letters) as a {
@@ -116,6 +122,21 @@ window_rows(scroll: Nat): Nat
   let w = window(scroll)
   open w
   w.snd
+
+visible: Nat
+  if Nat.is_zero(row_h) then 0
+  else Nat.div(Nat.sub(view_h, row_h), row_h)
+
+reveal(scroll: Nat, row: Nat): Nat
+  let top = first(scroll)
+  if Nat.ltn(row, top) then Nat.mul(row, row_h)
+  else
+    let vis = visible
+    if Nat.is_zero(vis) then scroll
+    else
+      let bot = Nat.add(top, Nat.sub(vis, 1))
+      if Nat.ltn(bot, row) then Nat.mul(Nat.sub(Nat.succ(row), vis), row_h)
+      else scroll
 
 sum(xs: List<Nat>): Nat
   case xs {
@@ -187,31 +208,36 @@ grip(i: Nat): DOM
     []
   )
 
-head_cell(i: Nat, w: Nat): DOM
+head_bg(i: Nat, sel: Nat): String
+  if Nat.eql(i, sel) then " bg-primary text-primary-content"
+  else " bg-base-200"
+
+head_cell(i: Nat, w: Nat, sel: Nat): DOM
   box(
-    w_cls(w) | " relative h-6 overflow-hidden border-r border-b border-base-300 bg-base-200 px-1 text-xs font-semibold leading-6",
+    w_cls(w) | " relative h-6 overflow-hidden border-r border-b border-base-300 px-1 text-xs font-semibold leading-6" | head_bg(i, sel),
     Map.new<String>,
     [Html.text(letter(i)), grip(i)]
   )
 
-head_cells.go(i: Nat, ws: List<Nat>): List<DOM>
+head_cells.go(i: Nat, ws: List<Nat>, sel: Nat): List<DOM>
   case ws {
     nil: []
-    cons: List.cons<DOM>(head_cell(i, ws.head), head_cells.go(Nat.succ(i), ws.tail))
+    cons: List.cons<DOM>(head_cell(i, ws.head, sel), head_cells.go(Nat.succ(i), ws.tail, sel))
   }
 
-num_cell(txt: String): DOM
+num_cell(txt: String, hot: Bool): DOM
   box(
-    "w-12 shrink-0 h-6 overflow-hidden border-r border-b border-base-300 bg-base-200 px-1 text-xs font-semibold leading-6",
+    "w-12 shrink-0 h-6 overflow-hidden border-r border-b border-base-300 px-1 text-xs font-semibold leading-6" |
+      if hot then " bg-primary text-primary-content" else " bg-base-200",
     Map.new<String>,
     [Html.text(txt)]
   )
 
-header(ws: List<Nat>): DOM
+header(ws: List<Nat>, sel: Nat): DOM
   box(
     "sticky top-0 z-10 flex select-none",
     Map.new<String>,
-    List.cons<DOM>(num_cell("#"), head_cells.go(0, ws))
+    List.cons<DOM>(num_cell("#", false), head_cells.go(0, ws, sel))
   )
 
 cell_input(row: Nat, col: Nat, w: Nat, cells: Map<String>): DOM
@@ -227,9 +253,13 @@ cell_input(row: Nat, col: Nat, w: Nat, cells: Map<String>): DOM
           "data-sure-key",
           "c-" | Nat.show(row) | "-" | Nat.show(col),
           Html.attr(
-            "class",
-            "h-6 overflow-hidden truncate border-r border-b border-base-300 bg-base-100 px-1 text-xs leading-6 input input-ghost input-xs min-h-0 shrink-0 box-border",
-            Map.new<String>
+            "data-sure-autofocus",
+            "1",
+            Html.attr(
+              "class",
+              "h-6 overflow-hidden truncate border-r border-b border-primary bg-base-100 px-1 text-xs leading-6 input input-ghost input-xs min-h-0 shrink-0 box-border ring-1 ring-primary",
+              Map.new<String>
+            )
           )
         )
       )
@@ -238,29 +268,45 @@ cell_input(row: Nat, col: Nat, w: Nat, cells: Map<String>): DOM
     []
   )
 
-body_cells.go(row: Nat, col: Nat, ws: List<Nat>, cells: Map<String>): List<DOM>
+cell_plain(row: Nat, col: Nat, w: Nat, cells: Map<String>): DOM
+  box_st(
+    "h-6 overflow-hidden truncate border-r border-b border-base-300 bg-base-100 px-1 text-xs leading-6 shrink-0 box-border cursor-cell",
+    Html.on(
+      "click",
+      "sel-" | Nat.show(row) | "-" | Nat.show(col),
+      Html.attr("data-sure-key", "c-" | Nat.show(row) | "-" | Nat.show(col), Map.new<String>)
+    ),
+    px("width", w, px("min-width", w, px("max-width", w, Map.set<String>("height", "24px", Map.new<String>)))),
+    [Html.text(cell_get(row, col, cells))]
+  )
+
+cell_view(row: Nat, col: Nat, w: Nat, cells: Map<String>, sr: Nat, sc: Nat): DOM
+  if Bool.and(Nat.eql(row, sr), Nat.eql(col, sc)) then cell_input(row, col, w, cells)
+  else cell_plain(row, col, w, cells)
+
+body_cells.go(row: Nat, col: Nat, ws: List<Nat>, cells: Map<String>, sr: Nat, sc: Nat): List<DOM>
   case ws {
     nil: []
     cons: List.cons<DOM>(
-      cell_input(row, col, ws.head, cells),
-      body_cells.go(row, Nat.succ(col), ws.tail, cells)
+      cell_view(row, col, ws.head, cells, sr, sc),
+      body_cells.go(row, Nat.succ(col), ws.tail, cells, sr, sc)
     )
   }
 
-row_view(idx: Nat, ws: List<Nat>, cells: Map<String>): DOM
+row_view(idx: Nat, ws: List<Nat>, cells: Map<String>, sr: Nat, sc: Nat): DOM
   let top = Nat.mul(idx, row_h)
   let wide = Nat.add(num_w, sum(ws))
   box_st(
     "flex h-6",
     Html.attr("data-sure-row", Nat.show(idx), Html.attr("data-sure-key", "row-" | Nat.show(idx), Map.new<String>)),
     Map.set<String>("position", "absolute", Map.set<String>("left", "0", px("top", top, px("width", wide, Map.new<String>)))),
-    List.cons<DOM>(num_cell(Nat.show(Nat.succ(idx))), body_cells.go(idx, 0, ws, cells))
+    List.cons<DOM>(num_cell(Nat.show(Nat.succ(idx)), Nat.eql(idx, sr)), body_cells.go(idx, 0, ws, cells, sr, sc))
   )
 
-rows.go(i: Nat, n: Nat, ws: List<Nat>, cells: Map<String>): List<DOM>
+rows.go(i: Nat, n: Nat, ws: List<Nat>, cells: Map<String>, sr: Nat, sc: Nat): List<DOM>
   case n {
     zero: []
-    succ: List.cons<DOM>(row_view(i, ws, cells), rows.go(Nat.succ(i), n.pred, ws, cells))
+    succ: List.cons<DOM>(row_view(i, ws, cells, sr, sc), rows.go(Nat.succ(i), n.pred, ws, cells, sr, sc))
   }
 
 overlay: DOM
@@ -280,22 +326,66 @@ view(m: Model): DOM
     "relative",
     Map.new<String>,
     px("height", h, px("width", wide, Map.new<String>)),
-    rows.go(win.fst, win.snd, m.widths, m.cells)
+    rows.go(win.fst, win.snd, m.widths, m.cells, m.row, m.col)
   )
   let scroller = box_st(
     "relative overflow-auto bg-base-100",
-    Html.on("scroll", "scroll", Html.attr("data-sure-scroll", "1", Map.new<String>)),
+    Html.on(
+      "scroll",
+      "scroll",
+      Html.on(
+        "keydown",
+        "key",
+        Html.attr(
+          "data-sure-scroll",
+          "1",
+          Html.attr(
+            "data-sure-row-h",
+            Nat.show(row_h),
+            Html.attr(
+              "data-sure-y",
+              Nat.show(m.scroll),
+              Html.attr("tabindex", "0", Map.new<String>)
+            )
+          )
+        )
+      )
+    ),
     Map.set<String>("height", "480px", Map.set<String>("overflow", "auto", Map.new<String>)),
-    [header(m.widths), space]
+    [header(m.widths, m.col), space]
   )
-  let bar = box("navbar bg-primary text-primary-content min-h-12 py-0", Map.new<String>, [
+  let name = box(
+    "w-16 shrink-0 h-8 px-2 text-sm font-semibold leading-8 border-r border-base-300 bg-base-200",
+    Map.new<String>,
+    [Html.text(cell(m.row, m.col))]
+  )
+  let fx = Html.el(
+    "input",
+    Html.on(
+      "change",
+      "bar",
+      Html.attr(
+        "value",
+        cell_get(m.row, m.col, m.cells),
+        Html.attr(
+          "class",
+          "input input-sm input-ghost w-full min-h-0 h-8 rounded-none",
+          Html.attr("data-sure-key", "fx", Map.new<String>)
+        )
+      )
+    ),
+    Map.new<String>,
+    []
+  )
+  let formula = box("flex items-center border-b border-base-300 bg-base-100", Map.new<String>, [name, fx])
+  let bar = box("navbar bg-neutral text-neutral-content min-h-10 py-0", Map.new<String>, [
     box("navbar-start gap-2 px-2", Map.new<String>, [
-      box("btn btn-ghost text-xl", Map.new<String>, [Html.text("Excel")]),
-      box("badge badge-ghost", Map.new<String>, [Html.text(Nat.show(total) | " rows")])
+      box("btn btn-ghost btn-sm text-lg font-bold", Map.new<String>, [Html.text("Excel")]),
+      box("badge badge-outline badge-sm", Map.new<String>, [Html.text(Nat.show(total) | " rows")])
     ])
   ])
   let card = box("card bg-base-100 shadow-xl m-2", Map.new<String>, [
-    box("card-body p-0", Map.new<String>, [scroller])
+    box("card-body p-0", Map.new<String>, [formula, scroller])
   ])
   let kids = case m.drag {
     none: [bar, card]
@@ -307,6 +397,22 @@ save_cmd(m: Model): Sure.Ui.Cmd
   open m
   Sure.Ui.Cmd.http("/sheet/save?w=" | show_widths(m.widths), "saved")
 
+clamp_row(r: Nat): Nat
+  if Nat.lte(r, Nat.sub(total, 1)) then r else Nat.sub(total, 1)
+
+clamp_col(c: Nat): Nat
+  if Nat.lte(c, Nat.sub(cols, 1)) then c else Nat.sub(cols, 1)
+
+move(m: Model, row: Nat, col: Nat): Model
+  open m
+  let r = clamp_row(row)
+  let c = clamp_col(col)
+  Model.new(reveal(m.scroll, r), m.widths, m.drag, m.cells, r, c)
+
+hold(m: Model, scroll: Nat, widths: List<Nat>, drag: Drag, cells: Map<String>): Model
+  open m
+  Model.new(scroll, widths, drag, cells, m.row, m.col)
+
 update(msg: String, ev: Html.Event.Data, m: Model): Pair<Model, Sure.Ui.Cmd>
   open m
   open ev
@@ -315,23 +421,35 @@ update(msg: String, ev: Html.Event.Data, m: Model): Pair<Model, Sure.Ui.Cmd>
       none: 0
       some: v.value
     }
-    Pair.new<Model, Sure.Ui.Cmd>(Model.new(n, m.widths, m.drag, m.cells), Sure.Ui.Cmd.none)
+    Pair.new<Model, Sure.Ui.Cmd>(hold(m, n, m.widths, m.drag, m.cells), Sure.Ui.Cmd.none)
   else if String.eql(msg, "load") then
-    Pair.new<Model, Sure.Ui.Cmd>(Model.new(m.scroll, read_widths(ev.value), m.drag, m.cells), Sure.Ui.Cmd.none)
+    Pair.new<Model, Sure.Ui.Cmd>(hold(m, m.scroll, read_widths(ev.value), m.drag, m.cells), Sure.Ui.Cmd.none)
   else if String.eql(msg, "saved") then
     Pair.new<Model, Sure.Ui.Cmd>(m, Sure.Ui.Cmd.none)
+  else if String.eql(msg, "bar") then
+    Pair.new<Model, Sure.Ui.Cmd>(hold(m, m.scroll, m.widths, m.drag, cell_set(m.row, m.col, ev.value, m.cells)), Sure.Ui.Cmd.none)
+  else if String.eql(msg, "key") then
+    if String.eql(ev.key, "ArrowDown") then Pair.new<Model, Sure.Ui.Cmd>(move(m, Nat.succ(m.row), m.col), Sure.Ui.Cmd.none)
+    else if String.eql(ev.key, "ArrowUp") then
+      Pair.new<Model, Sure.Ui.Cmd>(move(m, if Nat.is_zero(m.row) then 0 else Nat.sub(m.row, 1), m.col), Sure.Ui.Cmd.none)
+    else if String.eql(ev.key, "ArrowRight") then Pair.new<Model, Sure.Ui.Cmd>(move(m, m.row, Nat.succ(m.col)), Sure.Ui.Cmd.none)
+    else if String.eql(ev.key, "Tab") then Pair.new<Model, Sure.Ui.Cmd>(move(m, m.row, Nat.succ(m.col)), Sure.Ui.Cmd.none)
+    else if String.eql(ev.key, "Enter") then Pair.new<Model, Sure.Ui.Cmd>(move(m, Nat.succ(m.row), m.col), Sure.Ui.Cmd.none)
+    else if String.eql(ev.key, "ArrowLeft") then
+      Pair.new<Model, Sure.Ui.Cmd>(move(m, m.row, if Nat.is_zero(m.col) then 0 else Nat.sub(m.col, 1)), Sure.Ui.Cmd.none)
+    else Pair.new<Model, Sure.Ui.Cmd>(m, Sure.Ui.Cmd.none)
   else if String.eql(msg, "move") then
     case m.drag {
       none: Pair.new<Model, Sure.Ui.Cmd>(m, Sure.Ui.Cmd.none)
       col:
         let w = resize_w(m.drag.w, m.drag.x, ev.x)
         Pair.new<Model, Sure.Ui.Cmd>(
-          Model.new(m.scroll, set_w(m.drag.i, w, m.widths), Drag.col(m.drag.i, m.drag.x, m.drag.w), m.cells),
+          hold(m, m.scroll, set_w(m.drag.i, w, m.widths), Drag.col(m.drag.i, m.drag.x, m.drag.w), m.cells),
           Sure.Ui.Cmd.none
         )
     }
   else if String.eql(msg, "up") then
-    let next = Model.new(m.scroll, m.widths, Drag.none, m.cells)
+    let next = hold(m, m.scroll, m.widths, Drag.none, m.cells)
     Pair.new<Model, Sure.Ui.Cmd>(next, save_cmd(next))
   else
     case set_of(msg) as s {
@@ -339,19 +457,26 @@ update(msg: String, ev: Html.Event.Data, m: Model): Pair<Model, Sure.Ui.Cmd>
         let rc = s.value
         open rc
         Pair.new<Model, Sure.Ui.Cmd>(
-          Model.new(m.scroll, m.widths, m.drag, cell_set(rc.fst, rc.snd, ev.value, m.cells)),
+          Model.new(m.scroll, m.widths, m.drag, cell_set(rc.fst, rc.snd, ev.value, m.cells), rc.fst, rc.snd),
           Sure.Ui.Cmd.none
         )
       none:
-        case col_of(msg) as d {
-          none: Pair.new<Model, Sure.Ui.Cmd>(m, Sure.Ui.Cmd.none)
+        case sel_of(msg) as p {
           some:
-            case List.get<Nat>(d.value, m.widths) as w {
+            let rc = p.value
+            open rc
+            Pair.new<Model, Sure.Ui.Cmd>(move(m, rc.fst, rc.snd), Sure.Ui.Cmd.none)
+          none:
+            case col_of(msg) as d {
               none: Pair.new<Model, Sure.Ui.Cmd>(m, Sure.Ui.Cmd.none)
-              some: Pair.new<Model, Sure.Ui.Cmd>(
-                Model.new(m.scroll, m.widths, Drag.col(d.value, ev.x, w.value), m.cells),
-                Sure.Ui.Cmd.none
-              )
+              some:
+                case List.get<Nat>(d.value, m.widths) as w {
+                  none: Pair.new<Model, Sure.Ui.Cmd>(m, Sure.Ui.Cmd.none)
+                  some: Pair.new<Model, Sure.Ui.Cmd>(
+                    hold(m, m.scroll, m.widths, Drag.col(d.value, ev.x, w.value), m.cells),
+                    Sure.Ui.Cmd.none
+                  )
+                }
             }
         }
     }
@@ -375,13 +500,6 @@ document(body: String): String
   | "</head><body>"
   | body
   | "</body></html>"
-
-with_cdn(html: String): String
-  if String.includes(html, "cdn.tailwindcss.com") then html
-  else
-    let cdn = "<script src=\"https://cdn.tailwindcss.com\"></script><link href=\"https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css\" rel=\"stylesheet\" type=\"text/css\">"
-    let parts = String.split(html, "</title>")
-    List.head_with_default<String>("", parts) | "</title>" | cdn | String.join("</title>", List.drop<String>(1, parts))
 
 page_html: String
   document(Sure.Ui.draw_of<Model>(client, init))
@@ -470,7 +588,7 @@ send_page(id: String): IO<Unit>
       get f = File.read(p.value)
       case f {
         err: Http.Server.reply_ex(id, 200, "text/html; charset=utf-8", missing_html)
-        ok: Http.Server.reply_ex(id, 200, "text/html; charset=utf-8", with_cdn(f.value))
+        ok: Http.Server.reply_ex(id, 200, "text/html; charset=utf-8", f.value)
       }
     }
   }

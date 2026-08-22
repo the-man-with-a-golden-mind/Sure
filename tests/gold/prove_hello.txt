@@ -1,0 +1,3 @@
+== prove (type checker is the prover) ==
+proved  Hello.Spec : Hello.greet == "Sure"
+All listed theorems proved.

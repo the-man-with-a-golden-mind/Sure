@@ -16,5 +16,10 @@ sure-check.workspace = true
 sure-fmc.workspace = true
 sure-emit.workspace = true
 
+[dev-dependencies]
+sure-syntax.workspace = true
+sure-check.workspace = true
+sure-fmc.workspace = true
+
 [lints]
 workspace = true

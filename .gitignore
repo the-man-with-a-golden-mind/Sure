@@ -5,7 +5,8 @@ bin/js/perf/last.json
 bin/js/perf/browser.last.json
 bin/js/perf/frameworks.last.json
 bin/js/bun.lock
-scripts/
+scripts/*
+!scripts/diff-hello.sh
 *.class
 .DS_Store
 src/_*

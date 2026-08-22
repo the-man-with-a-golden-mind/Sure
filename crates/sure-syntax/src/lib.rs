@@ -1,13 +1,18 @@
-//! Sure surface syntax: terms, names, lexer. Parser lands in a later PR.
+//! Sure surface syntax: terms, names, lexer, parser.
 
+mod desugar;
+mod file;
 mod lex;
 mod name;
+mod parse;
 mod span;
 mod subst;
 mod term;
 
+pub use file::parse_file;
 pub use lex::{tokenize, Keyword, LexError, Token, TokenKind};
 pub use name::{is_ident_start, is_letter, Name};
+pub use parse::{parse_term, ParseError};
 pub use span::Span;
 pub use subst::{open_all, open_lam, subst_levels};
 pub use term::{Bits, Def, Defs, Error, Status, Term, WithBinder};

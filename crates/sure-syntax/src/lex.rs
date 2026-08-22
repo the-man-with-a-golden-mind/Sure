@@ -91,6 +91,8 @@ pub enum TokenKind {
     Gt,
     Eq,
     EqEq,
+    /// `?name` goals (`Sure.Parser.goal`).
+    Question,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -260,6 +262,7 @@ impl<'a> Lexer<'a> {
             '}' => TokenKind::RBrace,
             '<' => TokenKind::Lt,
             '>' => TokenKind::Gt,
+            '?' => TokenKind::Question,
             '=' if self.peek() == Some('=') => {
                 self.bump();
                 TokenKind::EqEq
@@ -414,5 +417,15 @@ mod tests {
     fn string_escapes_and_unterminated() {
         assert_eq!(kinds(r#""a\nb""#), vec![TokenKind::String("a\nb".into())]);
         assert!(tokenize(r#""abc"#).is_err());
+    }
+
+    #[test]
+    fn question_goal_and_admit() {
+        use Keyword::Admit;
+        use TokenKind::Question;
+        assert_eq!(
+            kinds("?hole admit"),
+            vec![Question, ident("hole"), kw(Admit)]
+        );
     }
 }

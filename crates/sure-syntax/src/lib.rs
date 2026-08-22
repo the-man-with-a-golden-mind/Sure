@@ -1,7 +1,8 @@
-//! Sure surface syntax: terms, names, lexer, parser.
+//! Sure surface syntax: terms, names, lexer, parser, formatter.
 
 mod desugar;
 mod file;
+mod fmt;
 mod lex;
 mod name;
 mod parse;
@@ -10,6 +11,7 @@ mod subst;
 mod term;
 
 pub use file::parse_file;
+pub use fmt::format_source;
 pub use lex::{tokenize, Keyword, LexError, Token, TokenKind};
 pub use name::{is_ident_start, is_letter, Name};
 pub use parse::{parse_term, ParseError};

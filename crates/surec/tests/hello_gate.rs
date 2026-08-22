@@ -157,6 +157,12 @@ fn json_bool_first(text: &str, key: &str) -> Option<bool> {
     }
 }
 
+/// Non-empty `proof_obligations` payload (`prove.rs` prints
+/// `{"proof_obligation": true}`). The key `"proof_obligations"` always exists.
+fn has_obligation_payload(text: &str) -> bool {
+    text.contains("{\"proof_obligation\": true}")
+}
+
 #[test]
 fn parse_hello_qualified_names() {
     let src = std::fs::read_to_string(hello_dir().join("src/Hello.sure")).unwrap();
@@ -229,15 +235,9 @@ fn prove_edges_from_js_selftest() {
         }
         if edge.obligation {
             assert!(
-                text.contains("proof_obligation"),
-                "expected proof obligation for {:?}: {text}",
+                has_obligation_payload(&text),
+                "expected a proof-obligation payload for {:?}: {text}",
                 edge.spec
-            );
-        }
-        if !edge.ok && edge.spec.contains("== 5") && edge.spec.contains("refl") {
-            assert!(
-                text.contains("proof_obligation") || text.contains("unproved"),
-                "2+2==5 refl: {text}"
             );
         }
     }

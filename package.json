@@ -1,6 +1,6 @@
 {
   "name": "sure-lang",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Sure — a dependent language. Write .sure, prove, emit JavaScript.",
   "license": "MIT",
   "type": "commonjs",

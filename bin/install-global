@@ -2,6 +2,8 @@
 # Install this clone as the global `sure` / `kind` binaries.
 # `bun add -g .` is not this: -g changes directory, so `.` becomes an unnamed
 # `@` package and Bun reports a dependency loop.
+# npm/bun install the JS checker only; they do not ship a native binary.
+# A clone with `cargo build --release` is picked by the shim when present.
 SELF="$0"
 while [ -L "$SELF" ]; do
   DIR="$(CDPATH= cd -- "$(dirname "$SELF")" && pwd)"

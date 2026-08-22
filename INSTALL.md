@@ -6,13 +6,29 @@ The user guide is [docs/](docs/README.md). This page is the install recipe.
 
 `./bin/sure` is the CLI. `./bin/kind` is the same program.
 
-JavaScript/Node is the application runtime. There is no Chez / Scheme host.
+The compiler is Rust when a rust binary is present (`cargo build --release` in this clone). It emits JavaScript. Node or Bun run the emitted program. There is no Chez / Scheme host.
 
-## JavaScript (primary)
+`kind` does not prefer Bun as the compiler when rust exists. `--bun` / `SURE_RUNTIME=bun` select the child runtime for emitted JS; they do not switch the compiler to Bun.
 
-Requires **Bun** (or Node 18+). `bin/sure` runs with Bun when `bun` is on `PATH`.
+## Native compiler (clone)
 
-The installable package is **`sure-lang`**: CLI, checker, `base/` stdlib, and FormCore in one tree.
+Requires **Rust 1.80+**. Ubuntu CI builds this. npm does not ship a native binary.
+
+```bash
+cargo build --release
+./bin/sure --version
+cd examples/hello
+./bin/sure prove Hello.Spec
+./bin/sure run
+```
+
+`bin/sure` / `bin/kind` prefer `target/release/sure`, then `target/debug/sure`, then `bin/surec`, then `surec` on PATH. Missing rust falls back to the JS checker. `SURE_COMPILER=js` forces JS.
+
+## JavaScript (fallback)
+
+Requires **Node 18+**. Bun is optional for emitted JS (`--bun` / `SURE_RUNTIME=bun`).
+
+The installable package is **`sure-lang`**: CLI, JS checker, `base/` stdlib, and FormCore in one tree. It does not include a native compiler binary.
 
 ```bash
 # from this clone (Bun's `bun add -g .` is not this package: -g changes
@@ -28,7 +44,7 @@ sure --version
 sure Main --run
 ```
 
-npm is the same layout: `npm install -g .` (Node 18+). Force Node: `SURE_RUNTIME=node` or `sure --node`.
+npm is the same layout: `npm install -g .` (Node 18+). That install is the JS checker, not a macOS (or any-platform) native binary. Force Node for emitted JS: `SURE_RUNTIME=node` or `sure --node`.
 
 From the repository without a global install:
 
@@ -114,5 +130,6 @@ A well-typed **completed** `a == b` term is a proof the program computes that wa
 
 ## Versions
 
-The language version is **Sure 0.1.0** (`base/Sure.sure`, `bin/js/package.json`).
+The language version is **Sure 0.1.0** (`base/Sure.sure`, `base/Sure/version.sure`).
+The installable package **sure-lang** is **0.2.0** (native rust compiler for the hello path).
 The lineage string remains **Legacy Kind 1.0.121** (`Sure.lineage`).

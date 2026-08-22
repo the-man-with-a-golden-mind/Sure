@@ -1,6 +1,8 @@
 #!/bin/sh
 # Repo-local and globally-linked Sure CLI. `bin/kind` is the same entry point.
-# Node 18+ is the compiler default. Emitted JS: --bun or SURE_RUNTIME=bun.
+# Prefer rust when present. SURE_COMPILER=js forces the JS checker.
+# --bun / SURE_RUNTIME=bun apply to the emitted JS child after rust exists,
+# not to switching the compiler to bun.
 SELF="$0"
 while [ -L "$SELF" ]; do
   DIR="$(CDPATH= cd -- "$(dirname "$SELF")" && pwd)"
@@ -17,6 +19,20 @@ if [ -z "$SURE_BASE" ] && [ -z "$KIND_BASE" ] && [ -f "$ROOT/base/Nat.sure" ]; t
   export SURE_BASE
   KIND_BASE="$SURE_BASE"
   export KIND_BASE
+fi
+if [ "$SURE_COMPILER" != "js" ]; then
+  if [ -x "$ROOT/target/release/sure" ]; then
+    exec "$ROOT/target/release/sure" "$@"
+  fi
+  if [ -x "$ROOT/target/debug/sure" ]; then
+    exec "$ROOT/target/debug/sure" "$@"
+  fi
+  if [ -x "$ROOT/bin/surec" ]; then
+    exec "$ROOT/bin/surec" "$@"
+  fi
+  if command -v surec >/dev/null 2>&1; then
+    exec surec "$@"
+  fi
 fi
 want_bun=0
 [ "$SURE_RUNTIME" = "bun" ] && want_bun=1

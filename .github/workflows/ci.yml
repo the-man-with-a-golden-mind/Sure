@@ -42,7 +42,7 @@ jobs:
       - name: LSP identity fixtures
         run: node bin/js/test-lsp-identity.js
       - name: Bounded test
-        run: node --stack-size=10000 bin/js/src/main.js test
+        run: SURE_COMPILER=js ./bin/sure test
       - name: UI page harness
         run: node bin/js/test-ui-pages.js
       - name: Test.main (Test.ci.suite + Test.host)
@@ -128,3 +128,33 @@ jobs:
         run: cargo test
       - name: cargo build --release
         run: cargo build --release
+      - name: Shim prefers rust
+        run: |
+          out=$(./bin/sure help)
+          echo "$out"
+          echo "$out" | grep -q '# Sure 0.2.0'
+          if echo "$out" | grep -q 'sure new myapp'; then
+            echo "shim used JS compiler" >&2
+            exit 1
+          fi
+          ./bin/kind --version | grep -q 'Sure 0.2.0'
+      - name: Hello prove and run (native rust, no sure.js)
+        working-directory: examples/hello
+        env:
+          SURE_BASE: ${{ github.workspace }}/base
+        run: |
+          ../../target/release/sure prove Hello.Spec
+          ../../target/release/sure run
+      - name: Prove-edges including refl on ==5
+        working-directory: examples/hello
+        env:
+          SURE_BASE: ${{ github.workspace }}/base
+        run: |
+          spec=$(printf '%s\n  refl\n' 'Edge.lie2: Nat.add(2, 2) == 5')
+          set +e
+          out=$(../../target/release/sure prove "$spec" 2>&1)
+          code=$?
+          set -e
+          printf '%s\n' "$out"
+          test "$code" -ne 0
+          printf '%s\n' "$out" | grep -q unproved

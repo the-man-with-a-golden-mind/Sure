@@ -1,3 +1,7 @@
+## Sure 0.2.0
+
+Native rust compiler for the hello path (`examples/hello` prove + run). `bin/sure` / `bin/kind` prefer `target/release/sure`, then `target/debug/sure`, then `bin/surec`, then `surec` on PATH. Missing rust still falls back to the JS checker (`SURE_COMPILER=js` forces it). `--bun` / `SURE_RUNTIME=bun` apply to the emitted JS child, not the compiler. `kind` does not prefer bun as the compiler when rust exists. Language `Sure.version` stays 0.1.0. Package `sure-lang` is 0.2.0. npm does not ship a native binary; Ubuntu CI builds rust.
+
 ## Sure 0.1.0
 
 Removed the Kind-era `blog/` posts and `web/` Kindelia website (webpack, pm2, events.moonad.org). HTML/UI in Sure is `docs/web.md` and the `Html` / `Http` stdlib, not a site in this tree.

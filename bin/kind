@@ -1,5 +1,7 @@
 #!/bin/sh
 # Compatibility alias. The language is Sure; this is the same CLI.
+# Prefer rust when present. Does not prefer bun as the compiler once rust exists.
+# SURE_COMPILER=js forces the JS checker. Missing rust still falls back to JS.
 SELF="$0"
 while [ -L "$SELF" ]; do
   DIR="$(CDPATH= cd -- "$(dirname "$SELF")" && pwd)"
@@ -16,6 +18,20 @@ if [ -z "$SURE_BASE" ] && [ -z "$KIND_BASE" ] && [ -f "$ROOT/base/Nat.sure" ]; t
   export SURE_BASE
   KIND_BASE="$SURE_BASE"
   export KIND_BASE
+fi
+if [ "$SURE_COMPILER" != "js" ]; then
+  if [ -x "$ROOT/target/release/sure" ]; then
+    exec "$ROOT/target/release/sure" "$@"
+  fi
+  if [ -x "$ROOT/target/debug/sure" ]; then
+    exec "$ROOT/target/debug/sure" "$@"
+  fi
+  if [ -x "$ROOT/bin/surec" ]; then
+    exec "$ROOT/bin/surec" "$@"
+  fi
+  if command -v surec >/dev/null 2>&1; then
+    exec surec "$@"
+  fi
 fi
 want_node=0
 [ "$SURE_RUNTIME" = "node" ] && want_node=1

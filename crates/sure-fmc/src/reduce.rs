@@ -3,7 +3,6 @@
 use crate::subst::open_lam;
 use crate::term::{Defs, Term};
 
-/// Unroll `Nat` one constructor: `0` → `Nat.zero`, else `Nat.succ (n-1)`.
 pub(crate) fn unroll_nat(n: u64) -> Term {
     if n == 0 {
         Term::ref_("Nat.zero")
@@ -27,7 +26,6 @@ pub(crate) fn unroll_chr(c: char) -> Term {
     done
 }
 
-/// Unroll a string one cons cell (`String.nil` / `String.cons`).
 /// FormCore.js indexes UTF-16 units; BMP/hello strings match `chars()`.
 pub(crate) fn unroll_str(s: &str) -> Term {
     match s.chars().next() {

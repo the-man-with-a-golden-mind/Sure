@@ -193,6 +193,8 @@ mod tests {
         assert_eq!(serialize(&parse_term("Foo.bar"), 0, 0), "$Foo.bar");
         assert_eq!(serialize(&parse_term("#x #y (x y)"), 0, 0), "##(^-1 ^-0)");
         assert_eq!(serialize(&parse_term("*"), 0, 0), "*");
+        // FormCore.js `dep - lvl - 1` is signed (`"^-" + -1` → `^--1`).
+        assert_eq!(serialize(&Term::var("x", 0), 0, 0), "^--1");
     }
 
     #[test]
@@ -204,6 +206,20 @@ mod tests {
 
         let err = typecheck(&parse_term("#x x"), &Term::Typ, &Defs::new(), &ctx).unwrap_err();
         assert_eq!(err.msg, "Lambda has a non-function type.");
+
+        // Ill-typed identity vs `@(x:*) x` used to overflow in `serialize`.
+        let err = typecheck(
+            &parse_term("#x x"),
+            &parse_term("@(x:*) x"),
+            &Defs::new(),
+            &ctx,
+        )
+        .unwrap_err();
+        assert!(
+            err.msg.contains("Found type:"),
+            "expected type error, got: {}",
+            err.msg
+        );
 
         let err = typeinfer(&parse_term("Nope"), &Defs::new(), &ctx).unwrap_err();
         assert_eq!(err.msg, "Unbound reference: 'Nope'.");

@@ -11,7 +11,7 @@ pub fn serialize(term: &Term, dep: u32, ini: u32) -> String {
     match term {
         Term::Var { level, .. } => {
             if *level >= ini {
-                // FormCore.js IEEE subtraction; `serialize(Var(_,0), 0, 0)` is `^-1`.
+                // FormCore.js IEEE subtraction; `serialize(Var(_,0), 0, 0)` is `^--1`.
                 format!("^-{}", (dep as i64) - (*level as i64) - 1)
             } else {
                 format!("^+{level}")

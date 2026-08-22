@@ -159,8 +159,28 @@ pub(crate) fn resolve_defs(
     }
 }
 
-/// `Sure.Term.qualify` — rewrite free `Ref`s. Binders are already vars.
+/// `Sure.Term.qualify` — rewrite free `Ref`s.
+///
+/// Sure runs `Term.bind` first, so bound names are already `Var`. Until bind
+/// lands, skip `Ref`s that match an enclosing `All`/`Lam`/`Let`/`Def` binder
+/// (do-notation `get x = …` must not become `M.x`).
 pub(crate) fn qualify<F>(term: &Term, resolve: &F) -> Term
+where
+    F: Fn(&str) -> Name,
+{
+    qualify_go(term, resolve, &mut Vec::new())
+}
+
+fn push_binder(bound: &mut Vec<Name>, name: &Name) -> bool {
+    if name.is_empty() {
+        false
+    } else {
+        bound.push(name.clone());
+        true
+    }
+}
+
+fn qualify_go<F>(term: &Term, resolve: &F, bound: &mut Vec<Name>) -> Term
 where
     F: Fn(&str) -> Name,
 {
@@ -169,7 +189,13 @@ where
             name: name.clone(),
             level: *level,
         },
-        Term::Ref(name) => Term::Ref(resolve(name)),
+        Term::Ref(name) => {
+            if bound.iter().any(|b| b == name) {
+                Term::Ref(name.clone())
+            } else {
+                Term::Ref(resolve(name))
+            }
+        }
         Term::Typ => Term::Typ,
         Term::All {
             eras,
@@ -178,50 +204,88 @@ where
             xtyp,
             body,
             bind_level,
-        } => Term::All {
-            eras: *eras,
-            self_name: self_name.clone(),
-            name: name.clone(),
-            xtyp: Box::new(qualify(xtyp, resolve)),
-            body: Box::new(qualify(body, resolve)),
-            bind_level: *bind_level,
-        },
+        } => {
+            let xtyp = qualify_go(xtyp, resolve, bound);
+            let pushed_self = push_binder(bound, self_name);
+            let pushed_name = push_binder(bound, name);
+            let body = qualify_go(body, resolve, bound);
+            if pushed_name {
+                bound.pop();
+            }
+            if pushed_self {
+                bound.pop();
+            }
+            Term::All {
+                eras: *eras,
+                self_name: self_name.clone(),
+                name: name.clone(),
+                xtyp: Box::new(xtyp),
+                body: Box::new(body),
+                bind_level: *bind_level,
+            }
+        }
         Term::Lam {
             name,
             body,
             bind_level,
-        } => Term::Lam {
-            name: name.clone(),
-            body: Box::new(qualify(body, resolve)),
-            bind_level: *bind_level,
-        },
-        Term::App { func, argm } => app(qualify(func, resolve), qualify(argm, resolve)),
+        } => {
+            let pushed = push_binder(bound, name);
+            let body = qualify_go(body, resolve, bound);
+            if pushed {
+                bound.pop();
+            }
+            Term::Lam {
+                name: name.clone(),
+                body: Box::new(body),
+                bind_level: *bind_level,
+            }
+        }
+        Term::App { func, argm } => app(
+            qualify_go(func, resolve, bound),
+            qualify_go(argm, resolve, bound),
+        ),
         Term::Let {
             name,
             expr,
             body,
             bind_level,
-        } => Term::Let {
-            name: name.clone(),
-            expr: Box::new(qualify(expr, resolve)),
-            body: Box::new(qualify(body, resolve)),
-            bind_level: *bind_level,
-        },
+        } => {
+            let expr = qualify_go(expr, resolve, bound);
+            let pushed = push_binder(bound, name);
+            let body = qualify_go(body, resolve, bound);
+            if pushed {
+                bound.pop();
+            }
+            Term::Let {
+                name: name.clone(),
+                expr: Box::new(expr),
+                body: Box::new(body),
+                bind_level: *bind_level,
+            }
+        }
         Term::Def {
             name,
             expr,
             body,
             bind_level,
-        } => Term::Def {
-            name: name.clone(),
-            expr: Box::new(qualify(expr, resolve)),
-            body: Box::new(qualify(body, resolve)),
-            bind_level: *bind_level,
-        },
+        } => {
+            let expr = qualify_go(expr, resolve, bound);
+            let pushed = push_binder(bound, name);
+            let body = qualify_go(body, resolve, bound);
+            if pushed {
+                bound.pop();
+            }
+            Term::Def {
+                name: name.clone(),
+                expr: Box::new(expr),
+                body: Box::new(body),
+                bind_level: *bind_level,
+            }
+        }
         Term::Ann { done, term, typ } => Term::Ann {
             done: *done,
-            term: Box::new(qualify(term, resolve)),
-            typ: Box::new(qualify(typ, resolve)),
+            term: Box::new(qualify_go(term, resolve, bound)),
+            typ: Box::new(qualify_go(typ, resolve, bound)),
         },
         Term::Gol { name, dref, verb } => Term::Gol {
             name: name.clone(),
@@ -246,50 +310,52 @@ where
             moti,
         } => Term::Cse {
             path: path.clone(),
-            expr: Box::new(qualify(expr, resolve)),
+            expr: Box::new(qualify_go(expr, resolve, bound)),
             name: name.clone(),
             with: with
                 .iter()
                 .map(|w| WithBinder {
                     name: w.name.clone(),
-                    term: qualify(&w.term, resolve),
-                    typ: w.typ.as_ref().map(|t| qualify(t, resolve)),
+                    term: qualify_go(&w.term, resolve, bound),
+                    typ: w.typ.as_ref().map(|t| qualify_go(t, resolve, bound)),
                 })
                 .collect(),
             cses: cses
                 .iter()
-                .map(|(k, v)| (k.clone(), qualify(v, resolve)))
+                .map(|(k, v)| (k.clone(), qualify_go(v, resolve, bound)))
                 .collect(),
-            moti: moti.as_deref().map(|t| Box::new(qualify(t, resolve))),
+            moti: moti
+                .as_deref()
+                .map(|t| Box::new(qualify_go(t, resolve, bound))),
         },
         Term::New { args } => Term::New {
-            args: args.iter().map(|t| qualify(t, resolve)).collect(),
+            args: args.iter().map(|t| qualify_go(t, resolve, bound)).collect(),
         },
         Term::Get { expr, fkey } => Term::Get {
-            expr: Box::new(qualify(expr, resolve)),
+            expr: Box::new(qualify_go(expr, resolve, bound)),
             fkey: fkey.clone(),
         },
         Term::Set { expr, fkey, fval } => Term::Set {
-            expr: Box::new(qualify(expr, resolve)),
+            expr: Box::new(qualify_go(expr, resolve, bound)),
             fkey: fkey.clone(),
-            fval: Box::new(qualify(fval, resolve)),
+            fval: Box::new(qualify_go(fval, resolve, bound)),
         },
         Term::Mut { expr, fkey, ffun } => Term::Mut {
-            expr: Box::new(qualify(expr, resolve)),
+            expr: Box::new(qualify_go(expr, resolve, bound)),
             fkey: fkey.clone(),
-            ffun: Box::new(qualify(ffun, resolve)),
+            ffun: Box::new(qualify_go(ffun, resolve, bound)),
         },
         Term::Ope { name, arg0, arg1 } => Term::Ope {
             name: name.clone(),
-            arg0: Box::new(qualify(arg0, resolve)),
-            arg1: Box::new(qualify(arg1, resolve)),
+            arg0: Box::new(qualify_go(arg0, resolve, bound)),
+            arg1: Box::new(qualify_go(arg1, resolve, bound)),
         },
         Term::Imp { expr } => Term::Imp {
-            expr: Box::new(qualify(expr, resolve)),
+            expr: Box::new(qualify_go(expr, resolve, bound)),
         },
         Term::Ori { orig, expr } => Term::Ori {
             orig: *orig,
-            expr: Box::new(qualify(expr, resolve)),
+            expr: Box::new(qualify_go(expr, resolve, bound)),
         },
     }
 }
@@ -465,5 +531,19 @@ mod tests {
         let locals = vec![Name::from("Hello.greet")];
         let q = qualify(&term, &|n| resolve("Hello", &locals, &[], n));
         assert_eq!(q, app(r#ref("Hello.greet"), r#ref("Nat.add")));
+    }
+
+    #[test]
+    fn qualify_skips_enclosing_lam_binder() {
+        let locals = vec![Name::from("Hello.greet")];
+        let resolve = |n: &str| resolve("Hello", &locals, &[], n);
+        // Free `greet` in the expr, bound `greet` in the body.
+        let term = lam("greet", app(r#ref("IO.print"), r#ref("greet")));
+        let q = qualify(&term, &resolve);
+        assert_eq!(q, lam("greet", app(r#ref("IO.print"), r#ref("greet"))));
+
+        let term = app(r#ref("greet"), lam("greet", r#ref("greet")));
+        let q = qualify(&term, &resolve);
+        assert_eq!(q, app(r#ref("Hello.greet"), lam("greet", r#ref("greet"))));
     }
 }

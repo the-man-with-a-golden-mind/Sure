@@ -227,10 +227,16 @@ impl<'a> Parser<'a> {
                 return Err(p.error("Expected '?'."));
             }
             p.bump();
-            // `Sure.Parser.name` is `many` letters (empty name is allowed).
+            // `Sure.Parser.name` is `many` letters (empty name is allowed),
+            // including words the lexer classifies as keywords (`?admit`).
             let name = match p.peek_kind() {
                 Some(TokenKind::Ident(n)) => {
                     let n = n.clone();
+                    p.bump();
+                    n
+                }
+                Some(TokenKind::Keyword(kw)) => {
+                    let n = Name::from(kw.as_str());
                     p.bump();
                     n
                 }
@@ -511,6 +517,8 @@ mod tests {
         assert_eq!(t("_"), hol());
         assert_eq!(t("admit"), admit());
         assert_eq!(t("?hole"), goal("hole"));
+        assert_eq!(t("?admit"), admit());
+        assert_eq!(parse_term("?admit").map(|tm| strip_ori(&tm)), Ok(admit()));
     }
 
     #[test]

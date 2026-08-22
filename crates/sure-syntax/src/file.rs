@@ -165,7 +165,7 @@ pub fn parse_file(file: &str, code: &str, defs: &mut Defs) -> Result<(), ParseEr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::desugar::{admit, app, equal, hol, r#ref, refl, strip_ori};
+    use crate::desugar::{admit, app, equal, hol, monad_bind, r#ref, refl, strip_ori};
     use crate::term::Term;
 
     const HELLO: &str = include_str!("../../../examples/hello/src/Hello.sure");
@@ -270,6 +270,31 @@ mod tests {
         let main = defs.get("Main").unwrap();
         assert_eq!(strip_ori(&main.typ), app(r#ref("IO"), r#ref("Unit")));
         assert_eq!(strip_ori(&main.term), r#ref("Hello.demo"));
+    }
+
+    #[test]
+    fn do_bind_does_not_qualify_bound_greet() {
+        let src = r#"module Hello exposing (greet, demo)
+
+greet: String
+  "Sure"
+
+demo: IO<Unit>
+  IO {
+    get greet = greet
+    IO.print(greet)
+  }
+"#;
+        let defs = parse("Hello.sure", src);
+        let demo = strip_ori(&defs.get("Hello.demo").unwrap().term);
+        let expected = monad_bind(
+            r#ref("IO"),
+            r#ref("IO.monad"),
+            r#ref("Hello.greet"),
+            Name::from("greet"),
+            app(r#ref("IO.print"), r#ref("greet")),
+        );
+        assert_eq!(demo, expected);
     }
 
     #[test]

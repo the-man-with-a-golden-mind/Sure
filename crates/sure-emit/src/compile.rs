@@ -752,6 +752,29 @@ fn returner(name: Option<&str>, expr: String) -> String {
     }
 }
 
+/// Compile-time `F64.make` fold. Matches FmcToJs
+/// `str.slice(0, -mag) + "." + str.slice(-mag)`: JS `-0` is `0`, so mag=0
+/// yields `.123` not `123.`.
+pub(crate) fn f64_make_literal(neg: bool, digits: u64, mag: u64) -> String {
+    let mag = mag as usize;
+    let mut s = digits.to_string();
+    while s.len() < mag + 1 {
+        s.insert(0, '0');
+    }
+    let (head, tail) = if mag == 0 {
+        ("", s.as_str())
+    } else {
+        let split = s.len() - mag;
+        (&s[..split], &s[split..])
+    };
+    let body = format!("{head}.{tail}");
+    if neg {
+        format!("-{body}")
+    } else {
+        body
+    }
+}
+
 struct EmitCx {
     count: u32,
     arity_of: HashMap<String, usize>,
@@ -914,19 +937,10 @@ impl EmitCx {
         if fname == "F64.make" && args.len() == 3 {
             if let (Comp::Ref(sign), Comp::Nat(a), Comp::Nat(b)) = (args[0], args[1], args[2]) {
                 if sign.as_str() == "Bool.true" || sign.as_str() == "Bool.false" {
-                    let mag = *b as usize;
-                    let mut s = a.to_string();
-                    while s.len() < mag + 1 {
-                        s.insert(0, '0');
-                    }
-                    let split = s.len() - mag;
-                    let s = format!("{}.{}", &s[..split], &s[split..]);
-                    let s = if sign.as_str() == "Bool.false" {
-                        format!("-{s}")
-                    } else {
-                        s
-                    };
-                    return returner(name, s);
+                    return returner(
+                        name,
+                        f64_make_literal(sign.as_str() == "Bool.false", *a, *b),
+                    );
                 }
             }
         }

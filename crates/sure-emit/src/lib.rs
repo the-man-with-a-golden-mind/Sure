@@ -94,6 +94,61 @@ Main : (IO Unit) =
         assert_eq!(crate::prim::PRIM_TYPES.len(), 17);
         assert!(crate::prim::prim_type("Unit").is_some());
         assert!(crate::prim::prim_type("String").is_some());
+        // FmcToJs `a+"-"+b` concatenates source, emitting subtraction.
+        assert_eq!(
+            crate::prim::prim_func("Int.new").unwrap().template,
+            "{0}-{1}"
+        );
+        assert_eq!(
+            crate::prim::fill_template("{0}-{1}", 2, &["pos".into(), "neg".into()]),
+            "(pos-neg)"
+        );
+        // Template literals `/^\\d+$/` emit a digit class, not `\\d`.
+        let nat_read = crate::prim::prim_func("Nat.read").unwrap().template;
+        let int_read = crate::prim::prim_func("Int.read").unwrap().template;
+        assert!(nat_read.contains(r"/^\d+$/"), "{nat_read}");
+        assert!(int_read.contains(r"/^-?\d+$/"), "{int_read}");
+        assert!(!nat_read.contains(r"\\d"), "{nat_read}");
+        assert!(!int_read.contains(r"\\d"), "{int_read}");
+        // JS source had `${c}` (unbound); 1-ary prim must substitute the arg.
+        assert_eq!(
+            crate::prim::prim_func("U32.sqrt").unwrap().template,
+            "Math.sqrt({0})>>>0"
+        );
+        assert_eq!(
+            crate::prim::fill_template("Math.sqrt({0})>>>0", 1, &["x".into()]),
+            "(Math.sqrt(x)>>>0)"
+        );
+    }
+
+    #[test]
+    fn empty_query_expands_full_host() {
+        let all = host_need_from_queries(&[""], false);
+        assert!(all.server && all.http && all.file);
+        let src = r#"
+Main : * = ((IO.ask *) "");
+IO.ask : * = *;
+"#;
+        let defs = parse_defs(src).expect("parse");
+        let h = collect_host_need(&defs, &["Main".to_string()]);
+        assert!(h.server && h.http && h.file);
+
+        let defs = parse_defs(&TINY_IO.replace("\"put_string\"", "\"\"")).expect("parse empty q");
+        let js = compile_defs(&defs, "Main", &EmitOpts::default()).expect("compile empty q");
+        assert!(
+            js.contains("http_listen"),
+            "empty IO.ask query must expand the full host"
+        );
+    }
+
+    #[test]
+    fn f64_make_mag_zero_matches_js_slice() {
+        // JS `slice(0, -0)+"."+slice(-0)` is `"" + "." + "123"` → `.123`.
+        assert_eq!(crate::compile::f64_make_literal(false, 123, 0), ".123");
+        assert_eq!(crate::compile::f64_make_literal(true, 123, 0), "-.123");
+        assert_eq!(crate::compile::f64_make_literal(false, 123, 2), "1.23");
+        assert_eq!(crate::compile::f64_make_literal(false, 5, 3), "0.005");
+        assert_eq!(crate::compile::f64_make_literal(true, 5, 1), "-0.5");
     }
 
     #[test]

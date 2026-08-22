@@ -517,9 +517,7 @@ pub fn host_need_from_queries(queries: &[&str], dynamic: bool) -> HostNeed {
     }
     let mut n = HostNeed::core_only();
     for q in queries {
-        if q.is_empty() {
-            continue;
-        }
+        // Unknown queries (including "") expand every slice, matching FmcToJs.
         match query_group(q) {
             Some(g) => n.set_group(g),
             None => return HostNeed::all(),

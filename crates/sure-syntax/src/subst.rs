@@ -145,14 +145,9 @@ pub fn subst_levels(term: &Term, a_lv: u32, a: &Term, b_lv: Option<u32>, b: &Ter
     }
 }
 
-/// HOAS apply of `All.body(s, x)`. `all` must be `Term::All`.
-pub fn open_all(all: &Term, s: &Term, x: &Term) -> Term {
-    match all {
-        Term::All {
-            body, bind_level, ..
-        } => subst_levels(body, *bind_level, s, Some(*bind_level + 1), x),
-        _ => panic!("open_all requires Term::All"),
-    }
+/// HOAS apply of `All.body(s, x)`: self at `bind_level`, name at `bind_level+1`.
+pub fn open_all(body: &Term, bind_level: u32, s: &Term, x: &Term) -> Term {
+    subst_levels(body, bind_level, s, Some(bind_level + 1), x)
 }
 
 /// HOAS apply of `Lam.body(x)` (also `let`/`def` subst).
@@ -191,32 +186,20 @@ mod tests {
         }
     }
 
-    fn all_term(self_name: &str, name: &str, bind_level: u32, body: Term) -> Term {
-        Term::All {
-            eras: false,
-            self_name: n(self_name),
-            name: n(name),
-            xtyp: Box::new(Term::Typ),
-            body: Box::new(body),
-            bind_level,
-        }
-    }
-
     /// 1. `open_all` at `ctx_size=0` substitutes self/name at levels 0/1.
     #[test]
     fn open_all_ctx0_self_name_levels() {
         let body = app(var("s", 0), var("x", 1));
-        let all = all_term("s", "x", 0, body);
-        let opened = open_all(&all, &Term::Ref(n("Self")), &Term::Ref(n("Arg")));
+        let opened = open_all(&body, 0, &Term::Ref(n("Self")), &Term::Ref(n("Arg")));
         assert_eq!(opened, app(Term::Ref(n("Self")), Term::Ref(n("Arg"))));
     }
 
     /// 2. `lam` vs `all` at empty ctx: self becomes the lambda; name is level 0.
     #[test]
     fn open_all_lam_vs_all_self_is_lambda() {
-        let typv = all_term("s", "x", 0, app(var("s", 0), var("x", 1)));
+        let typv_body = app(var("s", 0), var("x", 1));
         let lam_term = lam("x", 0, var("x", 0));
-        let opened = open_all(&typv, &lam_term, &var("x", 0));
+        let opened = open_all(&typv_body, 0, &lam_term, &var("x", 0));
         assert_eq!(opened, app(lam_term, var("x", 0)));
     }
 
@@ -245,12 +228,12 @@ mod tests {
     /// 5. `expand.cse` dummy levels: both self and name become `Var(_, 0)`.
     #[test]
     fn open_all_expand_cse_dummy_levels() {
-        let etyp = all_term("s", "x", 0, app(var("s", 0), var("x", 1)));
-        let opened = open_all(&etyp, &var("s", 0), &var("x", 0));
+        let body = app(var("s", 0), var("x", 1));
+        let opened = open_all(&body, 0, &var("s", 0), &var("x", 0));
         assert_eq!(opened, app(var("s", 0), var("x", 0)));
 
-        let etyp = all_term("s", "x", 5, app(var("s", 5), var("x", 6)));
-        let opened = open_all(&etyp, &var("s", 0), &var("x", 0));
+        let body = app(var("s", 5), var("x", 6));
+        let opened = open_all(&body, 5, &var("s", 0), &var("x", 0));
         assert_eq!(opened, app(var("s", 0), var("x", 0)));
     }
 
@@ -267,8 +250,7 @@ mod tests {
     fn subst_walks_nested_binders_without_shift() {
         // Absolute levels: Var(0) under a nested Lam still matches outer self.
         let inner = lam("y", 2, var("s", 0));
-        let all = all_term("s", "x", 0, inner);
-        let opened = open_all(&all, &Term::Ref(n("S")), &Term::Ref(n("X")));
+        let opened = open_all(&inner, 0, &Term::Ref(n("S")), &Term::Ref(n("X")));
         assert_eq!(opened, lam("y", 2, Term::Ref(n("S"))));
     }
 

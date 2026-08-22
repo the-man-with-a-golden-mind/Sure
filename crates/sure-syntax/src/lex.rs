@@ -191,8 +191,12 @@ impl<'a> Lexer<'a> {
     fn nat(&mut self) -> Result<Token, LexError> {
         let from = self.pos;
         let mut value: u64 = 0;
-        while matches!(self.peek(), Some(c) if c.is_ascii_digit()) {
-            let d = self.bump().unwrap() as u64 - u64::from(b'0');
+        while let Some(c) = self.peek() {
+            if !c.is_ascii_digit() {
+                break;
+            }
+            self.bump();
+            let d = u64::from(c as u8 - b'0');
             value = value
                 .checked_mul(10)
                 .and_then(|v| v.checked_add(d))
@@ -206,7 +210,7 @@ impl<'a> Lexer<'a> {
 
     fn string(&mut self) -> Result<Token, LexError> {
         let from = self.pos;
-        self.bump(); // opening "
+        self.bump();
         let mut out = String::new();
         loop {
             match self.peek() {
@@ -244,7 +248,9 @@ impl<'a> Lexer<'a> {
 
     fn punct(&mut self) -> Result<Token, LexError> {
         let from = self.pos;
-        let c = self.bump().unwrap();
+        let Some(c) = self.bump() else {
+            unreachable!("punct after peek");
+        };
         let kind = match c {
             ':' => TokenKind::Colon,
             ',' => TokenKind::Comma,

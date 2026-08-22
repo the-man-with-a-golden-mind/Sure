@@ -54,7 +54,13 @@ impl Workspace {
             .unwrap_or_else(|| cwd.clone());
         let source_dirs = source_dirs_of(&project_root);
         let path_dirs = split_path_env(&path_env());
-        let cache = Cache::from_env(project_root.join(".cache"), base.to_string_lossy());
+        let here: Vec<String> = source_dirs
+            .iter()
+            .chain(path_dirs.iter())
+            .chain(std::iter::once(&base))
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        let cache = Cache::from_env(project_root.join(".cache"), here);
         Some(Self {
             base,
             project_root,

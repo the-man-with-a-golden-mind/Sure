@@ -20,7 +20,7 @@ mod status;
 mod workspace;
 
 pub use bind::{bind, bind_holes, bind_term, bind_type, PathBuilder};
-pub use cache::{cache_key, decode, file_ok, Cache, Record, COMPILER, SCHEMA};
+pub use cache::{cache_key, decode, file_ok, file_ok_in, Cache, Record, COMPILER, SCHEMA};
 pub use check::{cant_infer, check, check_direct, check_patch};
 pub use context::{at_last, find, Context};
 pub use equal::{equal, equal_go, equal_hole};

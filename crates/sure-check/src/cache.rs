@@ -24,8 +24,8 @@ pub struct Cache {
     pub dir: PathBuf,
     pub enabled: bool,
     pub blob_key: String,
-    /// `file_ok` root (Sure uses cwd after chdir to `SURE_BASE`).
-    pub here: String,
+    /// `file_ok` roots: stdlib `base` and project `source-directories`.
+    pub here: Vec<String>,
 }
 
 impl Cache {
@@ -34,27 +34,27 @@ impl Cache {
             dir: PathBuf::from(".cache"),
             enabled: false,
             blob_key: COMPILER.to_string(),
-            here: String::new(),
+            here: Vec::new(),
         }
     }
 
-    pub fn new(dir: impl Into<PathBuf>, here: impl Into<String>) -> Self {
+    pub fn new(dir: impl Into<PathBuf>, here: Vec<String>) -> Self {
         Self {
             dir: dir.into(),
             enabled: true,
             blob_key: blob_key(),
-            here: here.into(),
+            here,
         }
     }
 
     /// `SURE_CACHE=0` skips get and put.
-    pub fn from_env(dir: impl Into<PathBuf>, here: impl Into<String>) -> Self {
+    pub fn from_env(dir: impl Into<PathBuf>, here: Vec<String>) -> Self {
         let enabled = env_cache_enabled();
         Self {
             dir: dir.into(),
             enabled,
             blob_key: blob_key(),
-            here: here.into(),
+            here,
         }
     }
 
@@ -71,10 +71,11 @@ impl Cache {
         if rec.blob != self.blob_key {
             return None;
         }
-        if !file_ok(&rec.file, &self.here) {
+        if !file_ok_in(&rec.file, self.here.iter().map(String::as_str)) {
             return None;
         }
-        let hash = file_hash(&rec.file)?;
+        let path = self.resolve(&rec.file)?;
+        let hash = file_hash(&path)?;
         if hash != rec.hash {
             return None;
         }
@@ -88,13 +89,37 @@ impl Cache {
         if def.file.is_empty() || def.file == "<cached>" {
             return false;
         }
-        let hash = match file_hash(&def.file) {
+        if !file_ok_in(&def.file, self.here.iter().map(String::as_str)) {
+            return false;
+        }
+        let Some(path) = self.resolve(&def.file) else {
+            return false;
+        };
+        let hash = match file_hash(&path) {
             Some(h) if !h.is_empty() => h,
             _ => return false,
         };
         let rec = encode(&def.file, &hash, &self.blob_key, def.isct, def.arit, "", "");
         // Empty term/type payloads are incomplete: next `decode` misses.
         atomic_write(&self.dir, &cache_key(name), &rec)
+    }
+
+    /// Relative `files_of` names are joined with each root (project src first).
+    fn resolve(&self, file: &str) -> Option<PathBuf> {
+        if file.starts_with('/') {
+            let p = PathBuf::from(file);
+            return p.is_file().then_some(p);
+        }
+        for root in &self.here {
+            if root.is_empty() {
+                continue;
+            }
+            let p = Path::new(root).join(file);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+        None
     }
 }
 
@@ -114,17 +139,28 @@ pub fn cache_key(name: &str) -> String {
     hex(&sha256(name.as_bytes()))
 }
 
-pub fn file_hash(file: &str) -> Option<String> {
-    let bytes = fs::read(file).ok()?;
+pub fn file_hash(path: &Path) -> Option<String> {
+    let bytes = fs::read(path).ok()?;
     Some(hex(&sha256(&bytes)))
 }
 
-/// Relative paths stay in the tree. Absolute paths must sit under `here`.
+/// Relative `files_of` names stay in the tree. Absolute paths must sit under `here`.
 pub fn file_ok(file: &str, here: &str) -> bool {
+    file_ok_in(file, std::iter::once(here))
+}
+
+/// Like `file_ok`, but absolute paths may sit under **any** root (stdlib
+/// `base` or project `source-directories`).
+pub fn file_ok_in<'a, I>(file: &str, heres: I) -> bool
+where
+    I: IntoIterator<Item = &'a str>,
+{
     if file.is_empty() || file.contains("/../") || file.starts_with("../") {
         false
     } else if file.starts_with('/') {
-        file == here || file.starts_with(&format!("{here}/"))
+        heres
+            .into_iter()
+            .any(|here| !here.is_empty() && (file == here || file.starts_with(&format!("{here}/"))))
     } else {
         true
     }
@@ -376,6 +412,16 @@ mod tests {
     }
 
     #[test]
+    fn file_ok_accepts_project_src_and_stdlib_base() {
+        let heres = ["/repo/base", "/proj/src"];
+        assert!(file_ok_in("Hello.sure", heres));
+        assert!(file_ok_in("/proj/src/Hello.sure", heres));
+        assert!(file_ok_in("/repo/base/Nat/add.sure", heres));
+        assert!(!file_ok_in("/other/Hello.sure", heres));
+        assert!(!file_ok_in("../Hello.sure", heres));
+    }
+
+    #[test]
     fn cache_zero_skips_get_and_put() {
         let dir = std::env::temp_dir().join(format!("sure-cache-skip-{}", std::process::id()));
         let _ = fs::create_dir_all(&dir);
@@ -383,7 +429,7 @@ mod tests {
             dir: dir.clone(),
             enabled: false,
             blob_key: COMPILER.into(),
-            here: "/repo".into(),
+            here: vec!["/repo".into()],
         };
         let def = Def {
             file: dir.join("X.sure").to_string_lossy().into(),

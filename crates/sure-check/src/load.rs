@@ -140,13 +140,14 @@ impl Workspace {
         let mut next_stack = stack.to_vec();
         next_stack.push(name.to_string());
         for file in files {
-            let Some((path, code)) = self.read_kind_file(file) else {
+            let Some((_, code)) = self.read_kind_file(file) else {
                 continue;
             };
             defs = self.load_imports(&file_imps(&code), defs, &next_stack);
-            let file_str = path.to_string_lossy().to_string();
             let mut parsed = defs.clone();
-            if parse_file(&file_str, &code, &mut parsed).is_err() {
+            // `Sure.Defs.read` stores the `files_of` candidate (`Hello.sure`), not
+            // the absolute path of the winning root.
+            if parse_file(file, &code, &mut parsed).is_err() {
                 continue;
             }
             defs = parsed;
@@ -250,13 +251,9 @@ mod tests {
         assert!(defs.contains_key("Hello.greet"));
         assert!(defs.contains_key("Hello.demo"));
         let file = &defs.get("Hello.Spec").unwrap().file;
-        assert!(
-            file.ends_with("Hello.sure"),
-            "Hello.Spec must come from Hello.sure, got {file}"
-        );
-        assert!(
-            !file.contains("/base/"),
-            "project src must win over stdlib, got {file}"
+        assert_eq!(
+            file, "Hello.sure",
+            "Def.file is the files_of name, not an absolute path, got {file}"
         );
     }
 
@@ -275,8 +272,8 @@ mod tests {
         let ws = hello_ws();
         let defs = ws.load("Nat.add", Defs::new()).expect("Nat.add");
         let file = &defs.get("Nat.add").unwrap().file;
-        assert!(
-            file.ends_with("Nat/add.sure") || file.ends_with("add.sure"),
+        assert_eq!(
+            file, "Nat/add.sure",
             "Nat.add lives in Nat/add.sure, got {file}"
         );
     }

@@ -18,6 +18,14 @@ pub fn subst_levels(term: &Term, a_lv: u32, a: &Term, b_lv: Option<u32>, b: &Ter
         },
         Term::Ref(n) => Term::Ref(n.clone()),
         Term::Typ => Term::Typ,
+        Term::All { bind_level, .. }
+        | Term::Lam { bind_level, .. }
+        | Term::Let { bind_level, .. }
+        | Term::Def { bind_level, .. }
+            if opaque_binder(*bind_level, a_lv, b_lv) =>
+        {
+            term.clone()
+        }
         Term::All {
             eras,
             self_name,
@@ -86,6 +94,11 @@ pub fn subst_levels(term: &Term, a_lv: u32, a: &Term, b_lv: Option<u32>, b: &Ter
         Term::Chr(c) => Term::Chr(*c),
         Term::Str(s) => Term::Str(s.clone()),
     }
+}
+
+fn opaque_binder(bind_level: u32, a_lv: u32, b_lv: Option<u32>) -> bool {
+    let floor = b_lv.map(|b| a_lv.min(b)).unwrap_or(a_lv);
+    bind_level < floor
 }
 
 /// `All.body(s, x)` — self occupies `bind_level`, name `bind_level + 1`.

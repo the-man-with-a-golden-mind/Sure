@@ -4,8 +4,11 @@ use crate::term::{Term, WithBinder};
 ///   `level == a_lv` ⇒ clone `a`
 ///   `level == b_lv` ⇒ clone `b` (ignored if `b_lv` is `None`)
 ///
-/// Do not substitute inside `a`/`b`. Walk nested binders; Sure levels are
-/// absolute, so a match is replaced even under nested `All`/`Lam`/`Let`/`Def`.
+/// Do not substitute inside `a`/`b`. Walk nested binders of *this* term
+/// (absolute levels). Binders whose `bind_level` is below the substitution
+/// floor are foreign values already substituted in (Sure HOAS does not bind
+/// inside `s`/`x`); leave them opaque so a later `open_all` cannot rewrite
+/// a constructor lambda into `zero(pred)`.
 pub fn subst_levels(term: &Term, a_lv: u32, a: &Term, b_lv: Option<u32>, b: &Term) -> Term {
     match term {
         Term::Var { name, level } => {
@@ -19,6 +22,14 @@ pub fn subst_levels(term: &Term, a_lv: u32, a: &Term, b_lv: Option<u32>, b: &Ter
                     level: *level,
                 }
             }
+        }
+        Term::All { bind_level, .. }
+        | Term::Lam { bind_level, .. }
+        | Term::Let { bind_level, .. }
+        | Term::Def { bind_level, .. }
+            if opaque_binder(*bind_level, a_lv, b_lv) =>
+        {
+            term.clone()
         }
         Term::All {
             eras,
@@ -145,6 +156,13 @@ pub fn subst_levels(term: &Term, a_lv: u32, a: &Term, b_lv: Option<u32>, b: &Ter
     }
 }
 
+/// True when this binder was bound in a shallower context than the subst
+/// (a value plugged in by an outer `open_all` / `open_lam`).
+fn opaque_binder(bind_level: u32, a_lv: u32, b_lv: Option<u32>) -> bool {
+    let floor = b_lv.map(|b| a_lv.min(b)).unwrap_or(a_lv);
+    bind_level < floor
+}
+
 /// HOAS apply of `All.body(s, x)`: self at `bind_level`, name at `bind_level+1`.
 pub fn open_all(body: &Term, bind_level: u32, s: &Term, x: &Term) -> Term {
     subst_levels(body, bind_level, s, Some(bind_level + 1), x)
@@ -235,6 +253,21 @@ mod tests {
         let body = app(var("s", 5), var("x", 6));
         let opened = open_all(&body, 5, &var("s", 0), &var("x", 0));
         assert_eq!(opened, app(var("s", 0), var("x", 0)));
+    }
+
+    /// Nested `open_all` must not rewrite binders inside the substituted self
+    /// (Church constructor `λP λzero λsucc (succ pred)` vs inner All at 2).
+    #[test]
+    fn nested_open_all_does_not_capture_self_lambda() {
+        let succ_pred = app(var("succ", 3), var("pred", 0));
+        let ctor = lam("P", 1, lam("zero", 2, lam("succ", 3, succ_pred.clone())));
+        // Outer All body: P(self). After open at 0, P(ctor).
+        let outer = app(var("P", 1), var("self", 0));
+        let after_outer = open_all(&outer, 0, &ctor, &var("P", 1));
+        assert_eq!(after_outer, app(var("P", 1), ctor.clone()));
+        // Inner All at bind_level 2 would rewrite ctor's λzero/λsucc without the floor.
+        let after_inner = open_all(&after_outer, 2, &var("zero_self", 2), &var("zero", 3));
+        assert_eq!(after_inner, app(var("P", 1), ctor));
     }
 
     #[test]

@@ -18,8 +18,8 @@ Requires **Rust 1.80+**. Ubuntu CI builds this. npm does not ship a native binar
 cargo build --release
 ./bin/sure --version
 cd examples/hello
-./bin/sure prove Hello.Spec
-./bin/sure run
+../../bin/sure prove Hello.Spec
+../../bin/sure run
 ```
 
 `bin/sure` / `bin/kind` prefer `target/release/sure`, then `target/debug/sure`, then `bin/surec`, then `surec` on PATH. Missing rust falls back to the JS checker. `SURE_COMPILER=js` forces JS.

@@ -93,6 +93,15 @@ pub enum TokenKind {
     EqEq,
     /// `?name` goals (`Sure.Parser.goal`).
     Question,
+    /// `->` (`Sure.Parser.arrow` / `forall`).
+    Arrow,
+    /// `~` indexed ADT (`Sure.Parser.ADT`).
+    Tilde,
+    /// `|` (`Sure.Parser.string_concat`).
+    Pipe,
+    /// `!` (`Sure.Parser.application.hole`, smart case).
+    Bang,
+    Semi,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -268,6 +277,14 @@ impl<'a> Lexer<'a> {
                 TokenKind::EqEq
             }
             '=' => TokenKind::Eq,
+            '-' if self.peek() == Some('>') => {
+                self.bump();
+                TokenKind::Arrow
+            }
+            '~' => TokenKind::Tilde,
+            '|' => TokenKind::Pipe,
+            '!' => TokenKind::Bang,
+            ';' => TokenKind::Semi,
             other => {
                 return Err(self.err(from, format!("unexpected character {other:?}")));
             }

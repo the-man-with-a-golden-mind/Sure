@@ -1,6 +1,8 @@
 use crate::desugar::{mod_qual, qualify, resolve_defs};
 use crate::lex::{Keyword, TokenKind};
 use crate::name::Name;
+use crate::parse::binder::forall_make;
+use crate::parse::lambda::lambda_make;
 use crate::parse::{ParseError, Parser};
 use crate::span::Span;
 use crate::term::{Def, Defs, Status};
@@ -24,9 +26,15 @@ impl Parser<'_> {
         }
         let mut locals: Vec<Name> = Vec::new();
         while !self.at_eof() {
-            let def = self.parse_def(file, code, &module)?;
-            locals.push(def.name.clone());
-            defs.entry(def.name.clone()).or_insert(def);
+            let got = if self.at_keyword(Keyword::Type) {
+                self.parse_adt(file, code, &module)?
+            } else {
+                vec![self.parse_def(file, code, &module)?]
+            };
+            for def in got {
+                locals.push(def.name.clone());
+                defs.entry(def.name.clone()).or_insert(def);
+            }
         }
         rewrite(&module, &imps, &locals, defs);
         Ok(())
@@ -102,7 +110,7 @@ impl Parser<'_> {
         }
     }
 
-    /// `Sure.Parser.file.def` without binders: `name: type \n body`.
+    /// `Sure.Parser.file.def`: `name(args): type \n body`.
     fn parse_def(&mut self, file: &str, code: &str, module: &str) -> Result<Def, ParseError> {
         let from = match self.peek() {
             Some(t) => t.span.from,
@@ -116,6 +124,7 @@ impl Parser<'_> {
                 return Err(self.error("Expected a top-level definition or a type declaration."))
             }
         };
+        let args = self.binders_many(&TokenKind::Colon);
         if !matches!(self.peek_kind(), Some(TokenKind::Colon)) {
             return Err(self.error("Expected ':'."));
         }
@@ -124,6 +133,10 @@ impl Parser<'_> {
         let term = self.term()?;
         let upto = self.prev_upto();
         let name = mod_qual(module, &name0);
+        let arit = args.len() as u32;
+        let names: Vec<Name> = args.iter().map(|b| b.name.clone()).collect();
+        let typ = forall_make(&args, typ);
+        let term = lambda_make(names, term);
         Ok(Def {
             file: file.to_string(),
             code: code.to_string(),
@@ -132,7 +145,7 @@ impl Parser<'_> {
             term,
             typ,
             isct: false,
-            arit: 0,
+            arit,
             stat: Status::Init,
         })
     }
@@ -303,5 +316,92 @@ demo: IO<Unit>
         let defs = parse("M.sure", src);
         assert_eq!(strip_ori(&defs.get("M.p").unwrap().term), hol());
         assert_eq!(strip_ori(&defs.get("M.q").unwrap().term), admit());
+    }
+
+    #[test]
+    fn nat_adt_and_add_binders() {
+        let defs = parse("Nat.sure", include_str!("../../../base/Nat.sure"));
+        assert!(defs.contains_key("Nat"));
+        assert!(defs.contains_key("Nat.zero"));
+        assert!(defs.contains_key("Nat.succ"));
+        assert!(defs.get("Nat.succ").unwrap().isct);
+        assert_eq!(defs.get("Nat.succ").unwrap().arit, 1);
+        assert_eq!(defs.get("Nat").unwrap().arit, 0);
+
+        let add = parse("Nat/add.sure", include_str!("../../../base/Nat/add.sure"));
+        let def = add.get("Nat.add").unwrap();
+        assert_eq!(def.arit, 2);
+        match strip_ori(&def.term) {
+            Term::Lam { name, .. } => assert_eq!(name.as_ref(), "n"),
+            other => panic!("expected lambda, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn char_alias_and_indexed_word() {
+        let char_defs = parse("Char.sure", include_str!("../../../base/Char.sure"));
+        assert_eq!(strip_ori(&char_defs.get("Char").unwrap().typ), Term::Typ);
+        assert_eq!(
+            strip_ori(&char_defs.get("Char").unwrap().term),
+            r#ref("U16")
+        );
+
+        let word = parse("Word.sure", include_str!("../../../base/Word.sure"));
+        assert!(word.contains_key("Word"));
+        assert!(word.contains_key("Word.e"));
+        assert!(word.contains_key("Word.o"));
+        assert!(word.contains_key("Word.i"));
+        assert_eq!(word.get("Word").unwrap().arit, 1);
+        assert_eq!(word.get("Word.o").unwrap().arit, 3);
+    }
+
+    #[test]
+    fn hello_closure_gold_files_parse() {
+        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let gold = include_str!("../../../tests/gold/hello_closure.txt");
+        let mut files = Vec::new();
+        for name in gold.lines().map(str::trim).filter(|s| !s.is_empty()) {
+            let path = file_of_name(&repo, name)
+                .unwrap_or_else(|| panic!("no .sure file for gold name {name}"));
+            if !files.iter().any(|p| p == &path) {
+                files.push(path);
+            }
+        }
+        assert!(
+            files.len() >= 16,
+            "expected a stdlib closure, got {} files: {files:?}",
+            files.len()
+        );
+        for path in &files {
+            let code = std::fs::read_to_string(path)
+                .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+            let mut defs = Defs::new();
+            let rel = path.strip_prefix(&repo).unwrap_or(path);
+            parse_file(rel.to_str().unwrap_or("_.sure"), &code, &mut defs)
+                .unwrap_or_else(|e| panic!("parse {} failed: {e}\n{}", rel.display(), code));
+            assert!(!defs.is_empty(), "parse {} produced no defs", rel.display());
+        }
+    }
+
+    fn file_of_name(repo: &std::path::Path, name: &str) -> Option<std::path::PathBuf> {
+        let dotted = name.replace('.', "/") + ".sure";
+        let parent = name
+            .rsplit_once('.')
+            .map(|(a, _)| a.replace('.', "/") + ".sure")
+            .unwrap_or_default();
+        let root = name.split('.').next().unwrap_or(name).to_string() + ".sure";
+        let rels = [dotted.as_str(), parent.as_str(), root.as_str()];
+        for dir in ["examples/hello/src", "base"] {
+            for rel in rels {
+                if rel.is_empty() {
+                    continue;
+                }
+                let p = repo.join(dir).join(rel);
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
+        }
+        None
     }
 }

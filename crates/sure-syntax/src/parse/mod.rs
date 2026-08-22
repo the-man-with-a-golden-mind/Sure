@@ -1,4 +1,16 @@
-use crate::desugar::{admit, app, apps, equal, goal, hol, monad_bind, monad_pure, r#ref, refl};
+//! Surface parser. Submodules follow `base/Sure/Parser/*.sure`.
+
+pub(crate) mod adt;
+pub(crate) mod binder;
+mod case;
+mod do_block;
+mod get;
+mod if_term;
+pub(crate) mod lambda;
+mod reference;
+mod string_concat;
+
+use crate::desugar::{admit, app, apps, arrow, equal, goal, hol};
 use crate::lex::{Keyword, LexError, Token, TokenKind};
 use crate::name::Name;
 use crate::span::Span;
@@ -57,6 +69,10 @@ impl<'a> Parser<'a> {
         self.peek().map(|t| &t.kind)
     }
 
+    pub(crate) fn peek_nth_kind(&self, n: usize) -> Option<&TokenKind> {
+        self.tokens.get(self.pos + n).map(|t| &t.kind)
+    }
+
     pub(crate) fn at_eof(&self) -> bool {
         self.pos >= self.tokens.len()
     }
@@ -100,6 +116,16 @@ impl<'a> Parser<'a> {
         matches!(self.peek_kind(), Some(TokenKind::Ident(n)) if n.as_ref() == s)
     }
 
+    pub(crate) fn at_kind(&self, kind: &TokenKind) -> bool {
+        self.peek_kind() == Some(kind)
+    }
+
+    pub(crate) fn eat_semi(&mut self) {
+        if self.at_kind(&TokenKind::Semi) {
+            self.bump();
+        }
+    }
+
     pub(crate) fn try_parse<T, F>(&mut self, f: F) -> Option<T>
     where
         F: FnOnce(&mut Self) -> Result<T, ParseError>,
@@ -115,7 +141,7 @@ impl<'a> Parser<'a> {
     }
 
     /// `Sure.Parser.block`: wrap the consumed span in `Term::Ori`.
-    fn with_ori<F>(&mut self, f: F) -> Result<Term, ParseError>
+    pub(crate) fn with_ori<F>(&mut self, f: F) -> Result<Term, ParseError>
     where
         F: FnOnce(&mut Self) -> Result<Term, ParseError>,
     {
@@ -132,25 +158,53 @@ impl<'a> Parser<'a> {
     }
 
     /// `Sure.Parser.name1`. Reserved set matches `name1.sure` (not lexer keywords).
+    /// Keywords such as `as` are valid binder/term names (`String.concat`).
     pub(crate) fn name1(&mut self) -> Result<Name, ParseError> {
+        let text = match self.peek_kind() {
+            Some(TokenKind::Ident(n)) => n.as_ref(),
+            Some(TokenKind::Keyword(kw)) => kw.as_str(),
+            _ => return Err(self.error("Expected name.")),
+        };
+        if matches!(
+            text,
+            "case" | "do" | "if" | "with" | "for" | "else" | "switch" | "." | ".." | "..."
+        ) {
+            return Err(self.error("Reserved keyword."));
+        }
+        let name = Name::from(text);
+        self.bump();
+        Ok(name)
+    }
+
+    /// `Sure.Parser.name`: letters, including keywords (`as` in `String.concat`).
+    pub(crate) fn name(&mut self) -> Name {
         match self.peek_kind() {
             Some(TokenKind::Ident(n)) => {
-                if matches!(
-                    n.as_ref(),
-                    "case" | "do" | "if" | "with" | "for" | "else" | "switch" | "." | ".." | "..."
-                ) {
-                    return Err(self.error("Reserved keyword."));
-                }
                 let n = n.clone();
                 self.bump();
-                Ok(n)
+                n
             }
+            Some(TokenKind::Keyword(kw)) => {
+                let n = Name::from(kw.as_str());
+                self.bump();
+                n
+            }
+            _ => Name::from(""),
+        }
+    }
+
+    /// Binder / lambda field name: ident or keyword, empty if `sep` is next.
+    pub(crate) fn name_at_sep(&mut self, sep: &TokenKind) -> Result<Name, ParseError> {
+        if self.at_kind(sep) {
+            return Ok(Name::from(""));
+        }
+        match self.peek_kind() {
+            Some(TokenKind::Ident(_)) | Some(TokenKind::Keyword(_)) => Ok(self.name()),
             _ => Err(self.error("Expected name.")),
         }
     }
 
-    /// `Sure.Parser.term` subset for Hello: string, do, hole, goal, admit, reference;
-    /// suffixes application / erased app / equality.
+    /// `Sure.Parser.term`.
     pub(crate) fn term(&mut self) -> Result<Term, ParseError> {
         self.with_ori(|p| {
             let atom = p.atom()?;
@@ -159,10 +213,31 @@ impl<'a> Parser<'a> {
     }
 
     fn atom(&mut self) -> Result<Term, ParseError> {
+        if let Some(t) = self.try_parse(|p| p.forall()) {
+            return Ok(t);
+        }
+        if let Some(t) = self.try_parse(|p| p.lambda()) {
+            return Ok(t);
+        }
+        if let Some(t) = self.try_parse(|p| p.lambda_erased()) {
+            return Ok(t);
+        }
+        if let Some(t) = self.try_parse(|p| p.parenthesis()) {
+            return Ok(t);
+        }
+        if let Some(t) = self.try_parse(|p| p.if_term()) {
+            return Ok(t);
+        }
+        if let Some(t) = self.try_parse(|p| p.get_destructure()) {
+            return Ok(t);
+        }
         if let Some(t) = self.try_parse(|p| p.string_lit()) {
             return Ok(t);
         }
         if let Some(t) = self.try_parse(|p| p.do_block()) {
+            return Ok(t);
+        }
+        if let Some(t) = self.try_parse(|p| p.case()) {
             return Ok(t);
         }
         if let Some(t) = self.try_parse(|p| p.hole()) {
@@ -172,6 +247,9 @@ impl<'a> Parser<'a> {
             return Ok(t);
         }
         if let Some(t) = self.try_parse(|p| p.admit_term()) {
+            return Ok(t);
+        }
+        if let Some(t) = self.try_parse(|p| p.nat_lit()) {
             return Ok(t);
         }
         if let Some(t) = self.try_parse(|p| p.reference()) {
@@ -190,7 +268,15 @@ impl<'a> Parser<'a> {
                 term = t;
                 continue;
             }
+            if let Some(t) = self.try_parse(|p| p.arrow_suffix(term.clone())) {
+                term = t;
+                continue;
+            }
             if let Some(t) = self.try_parse(|p| p.equality(term.clone())) {
+                term = t;
+                continue;
+            }
+            if let Some(t) = self.try_parse(|p| p.string_concat_suffix(term.clone())) {
                 term = t;
                 continue;
             }
@@ -207,6 +293,17 @@ impl<'a> Parser<'a> {
                 Ok(Term::Str(s))
             }
             _ => Err(p.error("Expected a string.")),
+        })
+    }
+
+    fn nat_lit(&mut self) -> Result<Term, ParseError> {
+        self.with_ori(|p| match p.peek_kind() {
+            Some(TokenKind::Nat(n)) => {
+                let n = *n;
+                p.bump();
+                Ok(Term::Nat(n))
+            }
+            _ => Err(p.error("Expected a nat.")),
         })
     }
 
@@ -257,41 +354,49 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn reference(&mut self) -> Result<Term, ParseError> {
+    fn parenthesis(&mut self) -> Result<Term, ParseError> {
         self.with_ori(|p| {
-            let name = p.name1()?;
-            Ok(match name.as_ref() {
-                "Type" => Term::Typ,
-                "true" => r#ref("Bool.true"),
-                "false" => r#ref("Bool.false"),
-                "unit" => r#ref("Unit.new"),
-                "none" => app(r#ref("Maybe.none"), hol()),
-                "refl" => refl(),
-                _ => Term::Ref(name),
-            })
+            if !matches!(p.peek_kind(), Some(TokenKind::LParen)) {
+                return Err(p.error("Expected '('."));
+            }
+            p.bump();
+            let term = p.term()?;
+            if !matches!(p.peek_kind(), Some(TokenKind::RParen)) {
+                return Err(p.error("Expected ')'."));
+            }
+            p.bump();
+            Ok(term)
         })
     }
 
-    fn items_now(
+    pub(crate) fn items<T, F>(
         &mut self,
         open: fn(&TokenKind) -> bool,
         close: fn(&TokenKind) -> bool,
-    ) -> Result<Vec<Term>, ParseError> {
-        if !self.peek_is_adjacent() || !self.peek_kind().map(open).unwrap_or(false) {
+        adjacent: bool,
+        mut parse_item: F,
+    ) -> Result<Vec<T>, ParseError>
+    where
+        F: FnMut(&mut Self) -> Result<T, ParseError>,
+    {
+        if adjacent && !self.peek_is_adjacent() {
             return Err(self.error("Expected application."));
+        }
+        if !self.peek_kind().map(open).unwrap_or(false) {
+            return Err(self.error("Expected opener."));
         }
         self.bump();
         let mut args = Vec::new();
         loop {
             if self.peek_kind().map(close).unwrap_or(false) {
-                if args.is_empty() {
-                    return Err(self.error("Expected a term."));
-                }
                 self.bump();
                 return Ok(args);
             }
+            if self.at_eof() {
+                return Err(self.error("Expected closer."));
+            }
             let start = self.pos;
-            args.push(self.term()?);
+            args.push(parse_item(self)?);
             if self.pos == start {
                 return Err(self.error("Expected a term."));
             }
@@ -301,8 +406,24 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// `application.hole` (`()`) then `application` (`(args)`). `(` must be adjacent.
+    fn items_now(
+        &mut self,
+        open: fn(&TokenKind) -> bool,
+        close: fn(&TokenKind) -> bool,
+    ) -> Result<Vec<Term>, ParseError> {
+        let args = self.items(open, close, true, |p| p.term())?;
+        if args.is_empty() {
+            return Err(self.error("Expected a term."));
+        }
+        Ok(args)
+    }
+
+    /// `application.hole` (`()` / `!`) then `application` (`(args)`). `(` must be adjacent.
     fn application_or_hole(&mut self, func: Term) -> Result<Term, ParseError> {
+        if self.peek_is_adjacent() && matches!(self.peek_kind(), Some(TokenKind::Bang)) {
+            self.bump();
+            return Ok(app(func, hol()));
+        }
         if !self.peek_is_adjacent() || !matches!(self.peek_kind(), Some(TokenKind::LParen)) {
             return Err(self.error("Expected application."));
         }
@@ -356,128 +477,29 @@ impl<'a> Parser<'a> {
         Ok(equal(left, right))
     }
 
+    fn arrow_suffix(&mut self, left: Term) -> Result<Term, ParseError> {
+        if !matches!(self.peek_kind(), Some(TokenKind::Arrow)) {
+            return Err(self.error("Expected '->'."));
+        }
+        self.bump();
+        let right = self.term()?;
+        Ok(arrow(left, right))
+    }
+
     /// `text_now(" {")`: `{` with a gap after the previous token.
-    fn at_do_open_brace(&self) -> bool {
+    pub(crate) fn at_do_open_brace(&self) -> bool {
         matches!(self.peek_kind(), Some(TokenKind::LBrace)) && !self.peek_is_adjacent()
     }
 
-    fn next_has_gap(&self) -> bool {
+    pub(crate) fn next_has_gap(&self) -> bool {
         match (self.tokens.get(self.pos), self.tokens.get(self.pos + 1)) {
             (Some(a), Some(b)) => b.span.from > a.span.upto,
             _ => false,
         }
     }
-
-    /// `Sure.Parser.do` subset: `IO { stmt… }` (optional `do ` prefix, type params).
-    fn do_block(&mut self) -> Result<Term, ParseError> {
-        self.with_ori(|p| {
-            if p.at_ident("do") && p.next_has_gap() {
-                p.bump();
-            }
-            let name = p.name1()?;
-            let upper = name
-                .chars()
-                .next()
-                .map(|c| c.is_ascii_uppercase())
-                .unwrap_or(false);
-            if !upper {
-                return Err(p.error("Not a do-block."));
-            }
-            let mut params = Vec::new();
-            while !p.at_do_open_brace() {
-                if let Some(args) = p.try_parse(|q| {
-                    q.items_now(
-                        |k| matches!(k, TokenKind::LParen),
-                        |k| matches!(k, TokenKind::RParen),
-                    )
-                }) {
-                    params.extend(args);
-                } else if let Some(args) = p.try_parse(|q| {
-                    q.items_now(
-                        |k| matches!(k, TokenKind::Lt),
-                        |k| matches!(k, TokenKind::Gt),
-                    )
-                }) {
-                    params.extend(args);
-                } else {
-                    return Err(p.error("Not a do-block."));
-                }
-            }
-            p.bump();
-            let mut ty = r#ref(name.clone());
-            let mut monad = r#ref(format!("{name}.monad"));
-            for param in params {
-                ty = app(ty, param.clone());
-                monad = app(monad, param);
-            }
-            let term = p.do_statements(&ty, &monad)?;
-            if !matches!(p.peek_kind(), Some(TokenKind::RBrace)) {
-                return Err(p.error("Expected '}'."));
-            }
-            p.bump();
-            Ok(term)
-        })
-    }
-
-    fn do_statements(&mut self, ty: &Term, monad: &Term) -> Result<Term, ParseError> {
-        if let Some(t) = self.try_parse(|p| p.do_bind(ty, monad)) {
-            return Ok(t);
-        }
-        if let Some(t) = self.try_parse(|p| p.do_return(ty, monad)) {
-            return Ok(t);
-        }
-        if let Some(t) = self.try_parse(|p| p.do_statement(ty, monad)) {
-            return Ok(t);
-        }
-        if let Some(t) = self.try_parse(|p| p.do_end()) {
-            return Ok(t);
-        }
-        Err(self.error("Expected a do-statement."))
-    }
-
-    fn do_bind(&mut self, ty: &Term, monad: &Term) -> Result<Term, ParseError> {
-        if self.at_keyword(Keyword::Get) || self.at_ident("var") {
-            self.bump();
-        } else {
-            return Err(self.error("Expected get/var."));
-        }
-        let name = self.name1()?;
-        if !matches!(self.peek_kind(), Some(TokenKind::Eq)) {
-            return Err(self.error("Expected '='."));
-        }
-        self.bump();
-        let expr = self.term()?;
-        let body = self.do_statements(ty, monad)?;
-        Ok(monad_bind(ty.clone(), monad.clone(), expr, name, body))
-    }
-
-    fn do_return(&mut self, ty: &Term, monad: &Term) -> Result<Term, ParseError> {
-        if !self.at_ident("return") {
-            return Err(self.error("Expected 'return'."));
-        }
-        self.bump();
-        let expr = self.term()?;
-        Ok(monad_pure(ty.clone(), monad.clone(), expr))
-    }
-
-    fn do_statement(&mut self, ty: &Term, monad: &Term) -> Result<Term, ParseError> {
-        let expr = self.term()?;
-        let body = self.do_statements(ty, monad)?;
-        Ok(monad_bind(
-            ty.clone(),
-            monad.clone(),
-            expr,
-            Name::from(""),
-            body,
-        ))
-    }
-
-    fn do_end(&mut self) -> Result<Term, ParseError> {
-        self.term()
-    }
 }
 
-/// Parse a single term (Hello-slice grammar), then EOF.
+/// Parse a single term, then EOF.
 pub fn parse_term(code: &str) -> Result<Term, ParseError> {
     let mut p = Parser::from_src(code)?;
     let term = p.term()?;
@@ -490,7 +512,11 @@ pub fn parse_term(code: &str) -> Result<Term, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::desugar::strip_ori;
+    use crate::desugar::{
+        admit, app, arrow, equal, goal, hol, if_then_else, lam, monad_bind, r#ref, string_concat,
+        strip_ori,
+    };
+    use crate::name::Name;
 
     fn t(src: &str) -> Term {
         strip_ori(&parse_term(src).unwrap())
@@ -509,7 +535,7 @@ mod tests {
             t(r#"greet == "Sure""#),
             equal(r#ref("greet"), Term::Str("Sure".into()))
         );
-        assert_eq!(t("refl"), refl());
+        assert_eq!(t("refl"), crate::desugar::refl());
     }
 
     #[test]
@@ -527,6 +553,65 @@ mod tests {
         assert_eq!(t("IO<Unit>"), app(r#ref("IO"), r#ref("Unit")));
         assert_eq!(t("f(a, b)"), app(app(r#ref("f"), r#ref("a")), r#ref("b")));
         assert_eq!(t("f()"), app(r#ref("f"), hol()));
+        assert_eq!(t("Word(16)"), app(r#ref("Word"), Term::Nat(16)));
+    }
+
+    #[test]
+    fn field_get_is_a_dotted_name() {
+        assert_eq!(t("n.pred"), r#ref("n.pred"));
+        assert_eq!(t("a.value"), r#ref("a.value"));
+    }
+
+    #[test]
+    fn lambda_and_arrow() {
+        assert_eq!(t("(x) x"), lam("x", r#ref("x")));
+        assert_eq!(t("(x, y) x"), lam("x", lam("y", r#ref("x"))));
+        assert_eq!(
+            t("A -> IO<B>"),
+            arrow(r#ref("A"), app(r#ref("IO"), r#ref("B")))
+        );
+        assert_eq!(
+            t("(response: String) -> IO<A>"),
+            crate::desugar::all(
+                false,
+                "",
+                "response",
+                r#ref("String"),
+                app(r#ref("IO"), r#ref("A"))
+            )
+        );
+    }
+
+    #[test]
+    fn string_concat_pipe() {
+        assert_eq!(
+            t(r#"text | "\n""#),
+            string_concat(r#ref("text"), Term::Str("\n".into()))
+        );
+    }
+
+    #[test]
+    fn if_then_else_desugar() {
+        assert_eq!(
+            t("if c then a else b"),
+            if_then_else(r#ref("c"), r#ref("a"), r#ref("b"))
+        );
+    }
+
+    #[test]
+    fn case_with_motive_and_field_name() {
+        let got = t("case n { zero: m succ: n.pred } : Nat");
+        match got {
+            Term::Cse {
+                name, cses, moti, ..
+            } => {
+                assert_eq!(name.as_ref(), "n");
+                assert!(cses.contains_key("zero"));
+                assert_eq!(cses.get("succ").map(strip_ori), Some(r#ref("n.pred")));
+                assert_eq!(moti.as_deref().map(strip_ori), Some(r#ref("Nat")));
+            }
+            other => panic!("expected case, got {other:?}"),
+        }
     }
 
     #[test]

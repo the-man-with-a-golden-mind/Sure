@@ -30,6 +30,61 @@ pub(crate) fn lam(name: impl Into<Name>, body: Term) -> Term {
     }
 }
 
+pub(crate) fn lams(names: impl IntoIterator<Item = Name>, body: Term) -> Term {
+    let names: Vec<Name> = names.into_iter().collect();
+    names
+        .into_iter()
+        .rev()
+        .fold(body, |body, name| lam(name, body))
+}
+
+/// `Sure.Parser.lambda.make.start`: empty name list is `λ_. body`.
+pub(crate) fn lams_start(names: Vec<Name>, body: Term) -> Term {
+    if names.is_empty() {
+        lam("", body)
+    } else {
+        lams(names, body)
+    }
+}
+
+pub(crate) fn all(
+    eras: bool,
+    self_name: impl Into<Name>,
+    name: impl Into<Name>,
+    xtyp: Term,
+    body: Term,
+) -> Term {
+    Term::All {
+        eras,
+        self_name: self_name.into(),
+        name: name.into(),
+        xtyp: Box::new(xtyp),
+        body: Box::new(body),
+        bind_level: 0,
+    }
+}
+
+/// `Sure.Parser.arrow`: `A -> B` → `∀_. A. B`.
+pub(crate) fn arrow(xtyp: Term, body: Term) -> Term {
+    all(false, "", "", xtyp, body)
+}
+
+/// `Sure.Parser.if`: `if c then t else f` → `c (λ_. _) t f`.
+pub(crate) fn if_then_else(cond: Term, tcse: Term, fcse: Term) -> Term {
+    apps(cond, [lam("", hol()), tcse, fcse])
+}
+
+/// `Sure.Parser.string_concat`: `a | b` → `String.concat a b`.
+pub(crate) fn string_concat(left: Term, right: Term) -> Term {
+    apps(r#ref("String.concat"), [left, right])
+}
+
+/// `Sure.Parser.get.open`.
+pub(crate) fn get_open(names: Vec<Name>, tuple: Term, body: Term) -> Term {
+    let lams = lams_start(names, body);
+    apps(tuple, [lam("", hol()), lams])
+}
+
 /// `Sure.Parser.equality`: `a == b` → `Equal(_) a b`.
 pub(crate) fn equal(left: Term, right: Term) -> Term {
     apps(r#ref("Equal"), [hol(), left, right])

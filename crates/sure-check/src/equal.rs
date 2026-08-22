@@ -4,65 +4,9 @@ use std::collections::HashSet;
 
 use sure_syntax::{open_all, open_lam, Bits, Defs, Name, Term};
 
+use crate::error::{Check, Error};
 use crate::has_holes::has_holes;
 use crate::reduce::{nat_lit, normalize, reduce};
-
-/// Checker honesty: errors accumulate; `value` is `None` only on a stuck bind.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Check<T> {
-    pub value: Option<T>,
-    pub errors: Vec<Error>,
-}
-
-impl<T> Check<T> {
-    pub fn result(value: Option<T>, errors: Vec<Error>) -> Self {
-        Self { value, errors }
-    }
-
-    pub fn pure(value: T) -> Self {
-        Self {
-            value: Some(value),
-            errors: Vec::new(),
-        }
-    }
-
-    pub fn and_then<U, F>(self, f: F) -> Check<U>
-    where
-        F: FnOnce(T) -> Check<U>,
-    {
-        match self.value {
-            None => Check {
-                value: None,
-                errors: self.errors,
-            },
-            Some(v) => {
-                let mut next = f(v);
-                let mut errors = self.errors;
-                errors.append(&mut next.errors);
-                Check {
-                    value: next.value,
-                    errors,
-                }
-            }
-        }
-    }
-
-    pub fn map<U, F>(self, f: F) -> Check<U>
-    where
-        F: FnOnce(T) -> U,
-    {
-        Check {
-            value: self.value.map(f),
-            errors: self.errors,
-        }
-    }
-}
-
-/// `Sure.Error`. This PR only emits `Patch` (`equal.hole`).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Error {
-    Patch { path: Bits, term: Term },
-}
 
 /// `Sure.Term.equal`.
 pub fn equal(a: &Term, b: &Term, defs: &Defs) -> bool {
@@ -202,6 +146,11 @@ pub fn equal_hole(path: &Bits, term: &Term) -> Check<bool> {
             }],
         ),
     }
+}
+
+/// `Sure.Term.identical`: serialize-hash equality at level `lv`.
+pub(crate) fn identical(a: &Term, b: &Term, lv: u32) -> bool {
+    bits_eql(&serialize(a, lv, false), &serialize(b, lv, true))
 }
 
 fn var(name: &Name, level: u32) -> Term {
@@ -596,6 +545,7 @@ fn serialize_go(term: &Term, depth: u32, init: u32, diff: fn(Bits) -> Bits, x: B
 mod tests {
     use super::*;
     use crate::bind::bind_term;
+    use crate::error::Error;
     use sure_syntax::parse_term;
 
     fn parse(src: &str) -> Term {

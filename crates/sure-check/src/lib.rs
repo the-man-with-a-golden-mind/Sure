@@ -1,16 +1,27 @@
-//! Sure type checker: bind, reduce, equal, show, residual holes.
+//! Sure type checker: bind, reduce, equal, check, expand, synth fix.
 //!
 //! `subst_levels` / `open_all` / `open_lam` live in `sure-syntax` and are
 //! **not** re-exported here (that would pull `sure-fmc` into a cycle later).
 
 mod bind;
+mod check;
+mod context;
 mod equal;
+mod error;
+mod expand;
+mod fix;
 mod has_holes;
 mod reduce;
 mod show;
+mod status;
 
-pub use bind::{bind, bind_holes, bind_term, bind_type, Context, PathBuilder};
-pub use equal::{equal, equal_go, equal_hole, Check, Error};
+pub use bind::{bind, bind_holes, bind_term, bind_type, PathBuilder};
+pub use check::{cant_infer, check, check_direct, check_patch};
+pub use context::{at_last, find, Context};
+pub use equal::{equal, equal_go, equal_hole};
+pub use error::{Check, Error, TypeSide};
+pub use expand::{expand_cse, expand_get, expand_new, get_name_of_self_type};
+pub use fix::{patch_at, synth_fix, synth_one, Loader, StubLoader};
 pub use has_holes::has_holes;
 pub use reduce::{normalize, reduce};
 pub use show::{show, shown_has_hole};

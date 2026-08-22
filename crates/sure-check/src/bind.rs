@@ -2,8 +2,8 @@
 
 use sure_syntax::{Bits, Name, Term, WithBinder};
 
-/// Innermost binder at index 0 (`Sure.Context`).
-pub type Context = [(Name, Term)];
+/// Innermost binder at index 0 (`Sure.Context` during bind: name → value).
+type Context = [(Name, Term)];
 
 /// `Sure.Path.Builder` (`Bits -> Bits`) stored as wraps; first applied is outermost.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

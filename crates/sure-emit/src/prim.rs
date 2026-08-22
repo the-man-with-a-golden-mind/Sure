@@ -1,0 +1,642 @@
+//! Full `prim_types` / `prim_funcs` / `is_prim` from FmcToJs.js.
+
+/// Primitive type names (`is_prim`). Insertion order matches FmcToJs.
+pub const IS_PRIM: &[&str] = &[
+    "Unit", "Bool", "Nat", "Int", "Bits", "U8", "U16", "U32", "I32", "U64", "U128", "U256", "F32",
+    "F64", "String", "Buffer8", "Buffer32",
+];
+
+#[derive(Clone, Copy, Debug)]
+pub struct PrimFunc {
+    pub name: &'static str,
+    pub arity: usize,
+    pub template: &'static str,
+}
+
+/// Full primitive function table (FmcToJs `prim_funcs`).
+pub const PRIM_FUNCS: &[PrimFunc] = &[
+    PrimFunc { name: "Bool.not", arity: 1, template: "!{0}" },
+    PrimFunc { name: "Bool.and", arity: 2, template: "{0}&&{1}" },
+    PrimFunc { name: "Bool.if", arity: 3, template: "{0}?{1}:{2}" },
+    PrimFunc { name: "Bool.or", arity: 2, template: "{0}||{1}" },
+    PrimFunc { name: "Bits.o", arity: 1, template: "{0}+'0'" },
+    PrimFunc { name: "Bits.i", arity: 1, template: "{0}+'1'" },
+    PrimFunc { name: "Bits.concat", arity: 2, template: "{1}+{0}" },
+    PrimFunc { name: "Bits.eql", arity: 2, template: "{1}==={0}" },
+    PrimFunc { name: "Debug.log", arity: 2, template: "(console.log({0}),{1}())" },
+    PrimFunc { name: "Nat.add", arity: 2, template: "{0}+{1}" },
+    PrimFunc { name: "Nat.sub", arity: 2, template: "{0}-{1}<=0n?0n:{0}-{1}" },
+    PrimFunc { name: "Nat.mul", arity: 2, template: "{0}*{1}" },
+    PrimFunc { name: "Nat.div", arity: 2, template: "{1}===0n?0n:{0}/{1}" },
+    PrimFunc { name: "Nat.mod", arity: 2, template: "{1}===0n?{0}:{0}%{1}" },
+    PrimFunc { name: "Nat.div_mod", arity: 2, template: "{1}===0n?({_:'Pair.new','fst':0n,'snd':{0}}):({_:'Pair.new','fst':{0}/{1},'snd':{0}%{1}})" },
+    PrimFunc { name: "Nat.pow", arity: 2, template: "{0}**{1}" },
+    PrimFunc { name: "Nat.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "Nat.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "Nat.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "Nat.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "Nat.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "Nat.double", arity: 1, template: "{0}*2n" },
+    PrimFunc { name: "Nat.half", arity: 1, template: "{0}/2n" },
+    PrimFunc { name: "Nat.to_u8", arity: 1, template: "Number({0})&0xFF" },
+    PrimFunc { name: "Nat.to_u16", arity: 1, template: "Number({0})&0xFFFF" },
+    PrimFunc { name: "Nat.to_u32", arity: 1, template: "Number({0})>>>0" },
+    PrimFunc { name: "Nat.to_u64", arity: 1, template: "{0}&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "Nat.to_u128", arity: 1, template: "{0}&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "Nat.to_u256", arity: 1, template: "{0}&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "Nat.to_i32", arity: 1, template: "Number({0})" },
+    PrimFunc { name: "Nat.to_int", arity: 1, template: "{0}" },
+    PrimFunc { name: "Nat.to_bits", arity: 1, template: "nat_to_bits({0})" },
+    PrimFunc { name: "Nat.read", arity: 1, template: "(()=>{var s=String({0});return /^\\\\d+$/.test(s)?BigInt(s):0n;})()" },
+    PrimFunc { name: "Int.new", arity: 2, template: "{0}+\"-\"+{1}" },
+    PrimFunc { name: "Int.add", arity: 2, template: "{0}+{1}" },
+    PrimFunc { name: "Int.sub", arity: 2, template: "{0}-{1}" },
+    PrimFunc { name: "Int.mul", arity: 2, template: "{0}*{1}" },
+    PrimFunc { name: "Int.div", arity: 2, template: "{0}/{1}" },
+    PrimFunc { name: "Int.pow", arity: 2, template: "{0}**{1}" },
+    PrimFunc { name: "Int.to_i8", arity: 1, template: "Number({0})" },
+    PrimFunc { name: "Int.to_i16", arity: 1, template: "Number({0})" },
+    PrimFunc { name: "Int.to_i32", arity: 1, template: "Number({0})" },
+    PrimFunc { name: "Int.from_nat", arity: 1, template: "{0}" },
+    PrimFunc { name: "Int.read", arity: 1, template: "(()=>{var s=String({0});return /^-?\\\\d+$/.test(s)?BigInt(s):0n;})()" },
+    PrimFunc { name: "U8.add", arity: 2, template: "({0}+{1})&0xFF" },
+    PrimFunc { name: "U8.not", arity: 1, template: "((~{0})&0xFF)>>>0" },
+    PrimFunc { name: "U8.and", arity: 2, template: "{0}&{1}" },
+    PrimFunc { name: "U8.div", arity: 2, template: "({0}/{1})>>>0" },
+    PrimFunc { name: "U8.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "U8.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "U8.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "U8.inc", arity: 1, template: "({0}+1)&0xFF" },
+    PrimFunc { name: "U8.length", arity: 1, template: "({0}.length)&0xFF" },
+    PrimFunc { name: "U8.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "U8.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "U8.mod", arity: 2, template: "{0}%{1}" },
+    PrimFunc { name: "U8.mul", arity: 2, template: "({0}*{1})&0xFF" },
+    PrimFunc { name: "U8.or", arity: 2, template: "{0}|{1}" },
+    PrimFunc { name: "U8.pow", arity: 2, template: "({0}**{1})&0xFF" },
+    PrimFunc { name: "U8.read_base", arity: 2, template: "parseInt({1},{0})&0xFF" },
+    PrimFunc { name: "U8.shl", arity: 2, template: "({0}<<{1})&0xFF" },
+    PrimFunc { name: "U8.show", arity: 1, template: "String({0})" },
+    PrimFunc { name: "U8.shr", arity: 2, template: "{0}>>>{1}" },
+    PrimFunc { name: "U8.slice", arity: 3, template: "{2}.slice({0},{1})" },
+    PrimFunc { name: "U8.sqrt", arity: 1, template: "Math.sqrt({0})&0xFF" },
+    PrimFunc { name: "U8.sub", arity: 2, template: "({0}-{1})&0xFF" },
+    PrimFunc { name: "U8.to_f64", arity: 1, template: "{0}" },
+    PrimFunc { name: "U8.to_nat", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U8.to_i32", arity: 1, template: "{0}" },
+    PrimFunc { name: "U8.to_u8", arity: 1, template: "{0}" },
+    PrimFunc { name: "U8.to_u16", arity: 1, template: "{0}" },
+    PrimFunc { name: "U8.to_u32", arity: 1, template: "{0}" },
+    PrimFunc { name: "U8.to_u64", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U8.to_u128", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U8.to_u256", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U8.xor", arity: 2, template: "{0}^{1}" },
+    PrimFunc { name: "U8.read", arity: 1, template: "parseInt({0})" },
+    PrimFunc { name: "U8.from_nat", arity: 1, template: "Number({0})&0xFF" },
+    PrimFunc { name: "U16.add", arity: 2, template: "({0}+{1})&0xFFFF" },
+    PrimFunc { name: "U16.not", arity: 1, template: "((~{0})&0xFFFF)>>>0" },
+    PrimFunc { name: "U16.and", arity: 2, template: "{0}&{1}" },
+    PrimFunc { name: "U16.div", arity: 2, template: "({0}/{1})>>>0" },
+    PrimFunc { name: "U16.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "U16.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "U16.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "U16.inc", arity: 1, template: "({0}+1)&0xFFFF" },
+    PrimFunc { name: "U16.length", arity: 1, template: "({0}.length)&0xFFFF" },
+    PrimFunc { name: "U16.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "U16.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "U16.mod", arity: 2, template: "{0}%{1}" },
+    PrimFunc { name: "U16.mul", arity: 2, template: "({0}*{1})&0xFFFF" },
+    PrimFunc { name: "U16.or", arity: 2, template: "{0}|{1}" },
+    PrimFunc { name: "U16.pow", arity: 2, template: "({0}**{1})&0xFFFF" },
+    PrimFunc { name: "U16.read_base", arity: 2, template: "parseInt({1},{0})&0xFFFF" },
+    PrimFunc { name: "U16.shl", arity: 2, template: "({0}<<{1})&0xFFFF" },
+    PrimFunc { name: "U16.show", arity: 1, template: "String({0})" },
+    PrimFunc { name: "U16.shr", arity: 2, template: "{0}>>>{1}" },
+    PrimFunc { name: "U16.slice", arity: 3, template: "{2}.slice({0},{1})" },
+    PrimFunc { name: "U16.sqrt", arity: 1, template: "Math.sqrt({0})&0xFFFF" },
+    PrimFunc { name: "U16.sub", arity: 2, template: "({0}-{1})&0xFFFF" },
+    PrimFunc { name: "U16.to_f64", arity: 1, template: "{0}" },
+    PrimFunc { name: "U16.to_nat", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U16.to_i32", arity: 1, template: "{0}" },
+    PrimFunc { name: "U16.to_u8", arity: 1, template: "{0}" },
+    PrimFunc { name: "U16.to_u16", arity: 1, template: "{0}" },
+    PrimFunc { name: "U16.to_u32", arity: 1, template: "{0}" },
+    PrimFunc { name: "U16.to_u64", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U16.to_u128", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U16.to_u256", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U16.xor", arity: 2, template: "{0}^{1}" },
+    PrimFunc { name: "U16.to_bits", arity: 1, template: "u16_to_bits({0})" },
+    PrimFunc { name: "U16.read", arity: 1, template: "parseInt({0})" },
+    PrimFunc { name: "U16.from_nat", arity: 1, template: "Number({0})&0xFFFF" },
+    PrimFunc { name: "U32.add", arity: 2, template: "({0}+{1})>>>0" },
+    PrimFunc { name: "U32.not", arity: 1, template: "(~{0})>>>0" },
+    PrimFunc { name: "U32.and", arity: 2, template: "{0}&{1}" },
+    PrimFunc { name: "U32.div", arity: 2, template: "({0}/{1})>>>0" },
+    PrimFunc { name: "U32.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "U32.for", arity: 4, template: "u32_for({0},{1},{2},{3})" },
+    PrimFunc { name: "U32.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "U32.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "U32.inc", arity: 1, template: "({0}+1)>>>0" },
+    PrimFunc { name: "U32.length", arity: 1, template: "({0}.length)>>>0" },
+    PrimFunc { name: "U32.log", arity: 1, template: "Math.log10({0}.length)>>>0" },
+    PrimFunc { name: "U32.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "U32.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "U32.mod", arity: 2, template: "{0}%{1}" },
+    PrimFunc { name: "U32.mul", arity: 2, template: "({0}*{1})>>>0" },
+    PrimFunc { name: "U32.or", arity: 2, template: "{0}|{1}" },
+    PrimFunc { name: "U32.pow", arity: 2, template: "({0}**{1})>>>0" },
+    PrimFunc { name: "U32.read_base", arity: 2, template: "parseInt({1},{0})" },
+    PrimFunc { name: "U32.shl", arity: 2, template: "({0}<<{1})>>>0" },
+    PrimFunc { name: "U32.show", arity: 1, template: "String({0})" },
+    PrimFunc { name: "U32.shr", arity: 2, template: "{0}>>>{1}" },
+    PrimFunc { name: "U32.slice", arity: 3, template: "{2}.slice({0},{1})" },
+    PrimFunc { name: "U32.sqrt", arity: 1, template: "Math.sqrt(${c})>>>0" },
+    PrimFunc { name: "U32.sub", arity: 2, template: "({0}-{1})>>>0" },
+    PrimFunc { name: "U32.to_f64", arity: 1, template: "{0}" },
+    PrimFunc { name: "U32.to_nat", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U32.to_i32", arity: 1, template: "{0}" },
+    PrimFunc { name: "U32.to_u8", arity: 1, template: "{0}" },
+    PrimFunc { name: "U32.to_u16", arity: 1, template: "{0}" },
+    PrimFunc { name: "U32.to_u32", arity: 1, template: "{0}" },
+    PrimFunc { name: "U32.to_u64", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U32.to_u128", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U32.to_u256", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U32.xor", arity: 2, template: "({0}^{1})>>>0" },
+    PrimFunc { name: "U32.read", arity: 1, template: "parseInt({0})" },
+    PrimFunc { name: "U32.from_nat", arity: 1, template: "Number({0})>>>0" },
+    PrimFunc { name: "U64.add", arity: 2, template: "({0}+{1})&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U64.and", arity: 2, template: "{0}&{1}" },
+    PrimFunc { name: "U64.div", arity: 2, template: "({0}/{1})&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U64.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "U64.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "U64.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "U64.inc", arity: 1, template: "({0}+1)&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U64.length", arity: 1, template: "({0}.length)&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U64.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "U64.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "U64.mod", arity: 2, template: "{0}%{1}" },
+    PrimFunc { name: "U64.mul", arity: 2, template: "({0}*{1})&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U64.or", arity: 2, template: "{0}|{1}" },
+    PrimFunc { name: "U64.pow", arity: 2, template: "({0}**{1})&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U64.shl", arity: 2, template: "({0}<<{1})&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U64.show", arity: 1, template: "String({0})" },
+    PrimFunc { name: "U64.shr", arity: 2, template: "{0}>>{1}" },
+    PrimFunc { name: "U64.sub", arity: 2, template: "({0}-{1})&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U64.to_f64", arity: 1, template: "Number({0})" },
+    PrimFunc { name: "U64.to_nat", arity: 1, template: "{0}" },
+    PrimFunc { name: "U64.to_u8", arity: 1, template: "Number({0}&0xFFn)" },
+    PrimFunc { name: "U64.to_u16", arity: 1, template: "Number({0}&0xFFFFn)" },
+    PrimFunc { name: "U64.to_u32", arity: 1, template: "Number({0}&0xFFFFFFFFn)" },
+    PrimFunc { name: "U64.to_u64", arity: 1, template: "{0}" },
+    PrimFunc { name: "U64.to_u128", arity: 1, template: "{0}" },
+    PrimFunc { name: "U64.to_u256", arity: 1, template: "{0}" },
+    PrimFunc { name: "U64.xor", arity: 2, template: "{0}^{1}" },
+    PrimFunc { name: "U64.read", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U64.from_nat", arity: 1, template: "{0}&0xFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.add", arity: 2, template: "({0}+{1})&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.and", arity: 2, template: "{0}&{1}" },
+    PrimFunc { name: "U256.div", arity: 2, template: "({0}/{1})&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "U256.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "U256.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "U256.inc", arity: 1, template: "({0}+1)&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.length", arity: 1, template: "({0}.length)&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "U256.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "U256.mod", arity: 2, template: "{0}%{1}" },
+    PrimFunc { name: "U256.mul", arity: 2, template: "({0}*{1})&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.or", arity: 2, template: "{0}|{1}" },
+    PrimFunc { name: "U256.pow", arity: 2, template: "({0}**{1})&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.shl", arity: 2, template: "({0}<<{1})&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.show", arity: 1, template: "String({0})" },
+    PrimFunc { name: "U256.shr", arity: 2, template: "{0}>>{1}" },
+    PrimFunc { name: "U256.sub", arity: 2, template: "({0}-{1})&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "U256.to_f64", arity: 1, template: "{0}" },
+    PrimFunc { name: "U256.to_nat", arity: 1, template: "{0}" },
+    PrimFunc { name: "U256.to_u8", arity: 1, template: "Number({0}&0xFFn)" },
+    PrimFunc { name: "U256.to_u16", arity: 1, template: "Number({0}&0xFFFFn)" },
+    PrimFunc { name: "U256.to_u32", arity: 1, template: "Number({0}&0xFFFFFFFFn)" },
+    PrimFunc { name: "U256.to_u64", arity: 1, template: "{0}" },
+    PrimFunc { name: "U256.to_u128", arity: 1, template: "{0}" },
+    PrimFunc { name: "U256.to_u256", arity: 1, template: "{0}" },
+    PrimFunc { name: "U256.xor", arity: 2, template: "{0}^{1}" },
+    PrimFunc { name: "U256.read", arity: 1, template: "BigInt({0})" },
+    PrimFunc { name: "U256.from_nat", arity: 1, template: "{0}&0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFn" },
+    PrimFunc { name: "I32.add", arity: 2, template: "({0}+{1})>>0" },
+    PrimFunc { name: "I32.sub", arity: 2, template: "({0}-{1})>>0" },
+    PrimFunc { name: "I32.mul", arity: 2, template: "({0}*{1})>>0" },
+    PrimFunc { name: "I32.div", arity: 2, template: "({0}/{1})>>0" },
+    PrimFunc { name: "I32.mod", arity: 2, template: "{0}%{1}" },
+    PrimFunc { name: "I32.neg", arity: 1, template: "(-{0})" },
+    PrimFunc { name: "I32.pow", arity: 2, template: "({0}**{1})>>0" },
+    PrimFunc { name: "I32.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "I32.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "I32.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "I32.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "I32.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "I32.shr", arity: 2, template: "{0}>>{1}" },
+    PrimFunc { name: "I32.shl", arity: 2, template: "{0}<<{1}" },
+    PrimFunc { name: "I32.and", arity: 2, template: "{0}&{1}" },
+    PrimFunc { name: "I32.or", arity: 2, template: "{0}|{1}" },
+    PrimFunc { name: "I32.xor", arity: 2, template: "{0}^{1}" },
+    PrimFunc { name: "I32.slice", arity: 3, template: "{2}.slice({0},{1})" },
+    PrimFunc { name: "I32.read_base", arity: 2, template: "parseInt({1},{0})" },
+    PrimFunc { name: "I32.length", arity: 1, template: "{0}.length" },
+    PrimFunc { name: "I32.for", arity: 4, template: "i32_for({0},{1},{2},{3})" },
+    PrimFunc { name: "I32.to_f64", arity: 1, template: "{0}" },
+    PrimFunc { name: "I32.read", arity: 1, template: "parseInt({0})" },
+    PrimFunc { name: "I32.from_nat", arity: 1, template: "Number({0})" },
+    PrimFunc { name: "F64.add", arity: 2, template: "{0}+{1}" },
+    PrimFunc { name: "F64.sub", arity: 2, template: "{0}-{1}" },
+    PrimFunc { name: "F64.mul", arity: 2, template: "{0}*{1}" },
+    PrimFunc { name: "F64.div", arity: 2, template: "{0}/{1}" },
+    PrimFunc { name: "F64.mod", arity: 2, template: "{0}%{1}" },
+    PrimFunc { name: "F64.pow", arity: 2, template: "{0}**{1}" },
+    PrimFunc { name: "F64.parse", arity: 1, template: "parseFloat({0})" },
+    PrimFunc { name: "F64.read", arity: 1, template: "parseFloat({0})" },
+    PrimFunc { name: "F64.log", arity: 1, template: "Math.log({0})" },
+    PrimFunc { name: "F64.cos", arity: 1, template: "Math.cos({0})" },
+    PrimFunc { name: "F64.sin", arity: 1, template: "Math.sin({0})" },
+    PrimFunc { name: "F64.tan", arity: 1, template: "Math.tan({0})" },
+    PrimFunc { name: "F64.acos", arity: 1, template: "Math.acos({0})" },
+    PrimFunc { name: "F64.asin", arity: 1, template: "Math.asin({0})" },
+    PrimFunc { name: "F64.atan", arity: 1, template: "Math.atan({0})" },
+    PrimFunc { name: "F64.to_u32", arity: 1, template: "({0}>>>0)" },
+    PrimFunc { name: "F64.to_i32", arity: 1, template: "({0}>>0)" },
+    PrimFunc { name: "F64.make", arity: 3, template: "f64_make({0},{1},{2})" },
+    PrimFunc { name: "F64.from_nat", arity: 1, template: "Number({0})" },
+    PrimFunc { name: "F64.show", arity: 1, template: "String({0})" },
+    PrimFunc { name: "F64.round", arity: 1, template: "Math.round({0})" },
+    PrimFunc { name: "F64.ceil", arity: 1, template: "Math.ceil({0})" },
+    PrimFunc { name: "F64.floor", arity: 1, template: "Math.floor({0})" },
+    PrimFunc { name: "F64.atan2", arity: 2, template: "Math.atan2({0},{1})" },
+    PrimFunc { name: "Word.to_f64", arity: 2, template: "word_bits_to_uint({1})" },
+    PrimFunc { name: "Word.s_to_f64", arity: 2, template: "word_bits_to_sint({1})" },
+    PrimFunc { name: "F64.sqrt", arity: 1, template: "Math.sqrt({0})" },
+    PrimFunc { name: "F64.exp", arity: 1, template: "Math.exp({0})" },
+    PrimFunc { name: "F32.add", arity: 2, template: "Math.fround({0}+{1})" },
+    PrimFunc { name: "F32.sub", arity: 2, template: "Math.fround({0}-{1})" },
+    PrimFunc { name: "F32.mul", arity: 2, template: "Math.fround({0}*{1})" },
+    PrimFunc { name: "F32.div", arity: 2, template: "Math.fround({0}/{1})" },
+    PrimFunc { name: "F32.mod", arity: 2, template: "Math.fround({0}%{1})" },
+    PrimFunc { name: "F32.pow", arity: 2, template: "Math.fround({0}**{1})" },
+    PrimFunc { name: "F32.parse", arity: 1, template: "Math.fround(parseFloat({0}))" },
+    PrimFunc { name: "F32.log", arity: 1, template: "Math.fround(Math.log({0}))" },
+    PrimFunc { name: "F32.cos", arity: 1, template: "Math.fround(Math.cos({0}))" },
+    PrimFunc { name: "F32.sin", arity: 1, template: "Math.fround(Math.sin({0}))" },
+    PrimFunc { name: "F32.tan", arity: 1, template: "Math.fround(Math.tan({0}))" },
+    PrimFunc { name: "F32.acos", arity: 1, template: "Math.fround(Math.acos({0}))" },
+    PrimFunc { name: "F32.asin", arity: 1, template: "Math.fround(Math.asin({0}))" },
+    PrimFunc { name: "F32.atan", arity: 2, template: "Math.fround(Math.atan2({0},{1}))" },
+    PrimFunc { name: "F32.to_u32", arity: 1, template: "({0}>>>0)" },
+    PrimFunc { name: "F32.round", arity: 1, template: "Math.fround(Math.round({0}))" },
+    PrimFunc { name: "F32.ceil", arity: 1, template: "Math.fround(Math.ceil({0}))" },
+    PrimFunc { name: "F32.floor", arity: 1, template: "Math.fround(Math.floor({0}))" },
+    PrimFunc { name: "F32.sqrt", arity: 1, template: "Math.fround(Math.sqrt({0}))" },
+    PrimFunc { name: "F32.exp", arity: 1, template: "Math.fround(Math.exp({0}))" },
+    PrimFunc { name: "F32.min", arity: 2, template: "Math.fround(Math.min({0},{1}))" },
+    PrimFunc { name: "F32.max", arity: 2, template: "Math.fround(Math.max({0},{1}))" },
+    PrimFunc { name: "F32.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "F32.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "F32.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "F32.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "F32.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "F64.ltn", arity: 2, template: "{0}<{1}" },
+    PrimFunc { name: "F64.lte", arity: 2, template: "{0}<={1}" },
+    PrimFunc { name: "F64.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "F64.gte", arity: 2, template: "{0}>={1}" },
+    PrimFunc { name: "F64.gtn", arity: 2, template: "{0}>{1}" },
+    PrimFunc { name: "Buffer8.set", arity: 3, template: "({2}[{0}]={1},{2})" },
+    PrimFunc { name: "Buffer8.get", arity: 2, template: "({1}[{0}])" },
+    PrimFunc { name: "Buffer8.alloc", arity: 1, template: "new Uint8Array(2 ** Number({0}))" },
+    PrimFunc { name: "Buffer32.set", arity: 3, template: "({2}[{0}]={1},{2})" },
+    PrimFunc { name: "Buffer32.get", arity: 2, template: "({1}[{0}])" },
+    PrimFunc { name: "Buffer32.alloc", arity: 1, template: "new Uint32Array(2 ** Number({0}))" },
+    PrimFunc { name: "VoxBox.set_col", arity: 3, template: "({2}.buffer[{0}*2+1]={1},{2})" },
+    PrimFunc { name: "VoxBox.set_pos", arity: 3, template: "({2}.buffer[{0}*2]={1},{2})" },
+    PrimFunc { name: "VoxBox.set", arity: 4, template: "({3}.buffer[{0}*2]={1},{3}.buffer[{0}*2+1]={2},{3})" },
+    PrimFunc { name: "VoxBox.push", arity: 3, template: "({2}.buffer[{2}.length*2]={0},{2}.buffer[{2}.length*2+1]={1},{2}.length++,{2})" },
+    PrimFunc { name: "VoxBox.get_pos", arity: 2, template: "({1}.buffer[{0}*2])" },
+    PrimFunc { name: "VoxBox.get_col", arity: 2, template: "({1}.buffer[{0}*2+1])" },
+    PrimFunc { name: "String.eql", arity: 2, template: "{0}==={1}" },
+    PrimFunc { name: "String.concat", arity: 2, template: "{0}+{1}" },
+    PrimFunc { name: "Equal.cast", arity: 1, template: "{0}" },
+    PrimFunc { name: "Pos32.new", arity: 3, template: "(0|{0}|({1}<<12)|({2}<<24))" },
+    PrimFunc { name: "Pos32.get_x", arity: 1, template: "({0}&0xFFF)" },
+    PrimFunc { name: "Pos32.get_y", arity: 1, template: "(({0}>>>12)&0xFFF)" },
+    PrimFunc { name: "Pos32.get_z", arity: 1, template: "({0}>>>24)" },
+    PrimFunc { name: "Col32.get_a", arity: 1, template: "(({0}>>>24)&0xFF)" },
+    PrimFunc { name: "Col32.get_b", arity: 1, template: "(({0}>>>16)&0xFF)" },
+    PrimFunc { name: "Col32.get_g", arity: 1, template: "(({0}>>>8)&0xFF)" },
+    PrimFunc { name: "Col32.get_r", arity: 1, template: "({0}&0xFF)" },
+    PrimFunc { name: "Col32.new", arity: 4, template: "(0|{0}|({1}<<8)|({2}<<16)|({3}<<24))" },
+    PrimFunc { name: "Fm.Name.to_bits", arity: 1, template: "fm_name_to_bits({0})" },
+    PrimFunc { name: "Kind.Name.to_bits", arity: 1, template: "kind_name_to_bits({0})" },
+    PrimFunc { name: "Sure.Name.to_bits", arity: 1, template: "kind_name_to_bits({0})" },
+    PrimFunc { name: "List.for", arity: 3, template: "list_for({0})({1})({2})" },
+    PrimFunc { name: "List.length", arity: 1, template: "list_length({0})" },
+    PrimFunc { name: "Set.mut.new", arity: 1, template: "({})" },
+    PrimFunc { name: "Set.mut.set", arity: 2, template: "((k,s)=>((s[k]=true),s))({0},{1})" },
+    PrimFunc { name: "Set.mut.has", arity: 2, template: "!!({1}[{0}])" },
+    PrimFunc { name: "Set.mut.del", arity: 2, template: "((k,s)=>((delete s[k]),s))({0},{1})" },
+    PrimFunc { name: "BitsMap.set", arity: 3, template: "bitsmap_set({0},{1},{2},'set')" },
+    PrimFunc { name: "BitsMap.get", arity: 2, template: "bitsmap_get({0},{1})" },
+    PrimFunc { name: "BitsMap.del", arity: 2, template: "bitsmap_set({0},null,{1},'del')" },
+    PrimFunc { name: "BitsMap.ini", arity: 3, template: "bitsmap_ini({0},{1},{2},'ini')" },
+];
+
+pub fn prim_func(name: &str) -> Option<PrimFunc> {
+    PRIM_FUNCS.iter().copied().find(|p| p.name == name)
+}
+
+pub fn is_prim_name(name: &str) -> bool {
+    IS_PRIM.contains(&name)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CnamMode {
+    If,
+    Switch,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct InstCtor {
+    pub arity: usize,
+    pub template: &'static str,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct PrimType {
+    pub name: &'static str,
+    pub inst: &'static [InstCtor],
+    /// `{x}` is the scrutinee.
+    pub ctag: &'static str,
+    /// Per constructor, field extractors with `{x}`.
+    pub ctor: &'static [&'static [&'static str]],
+    pub mode: CnamMode,
+    pub nams: &'static [&'static str],
+}
+
+pub const PRIM_TYPES: &[PrimType] = &[
+    PrimType {
+        name: "Unit",
+        inst: &[InstCtor {
+            arity: 0,
+            template: "null",
+        }],
+        ctag: "\"unit\"",
+        ctor: &[&[]],
+        mode: CnamMode::Switch,
+        nams: &["unit"],
+    },
+    PrimType {
+        name: "Bool",
+        inst: &[
+            InstCtor {
+                arity: 0,
+                template: "true",
+            },
+            InstCtor {
+                arity: 0,
+                template: "false",
+            },
+        ],
+        ctag: "{x}",
+        ctor: &[&[], &[]],
+        mode: CnamMode::If,
+        nams: &[],
+    },
+    PrimType {
+        name: "Nat",
+        inst: &[
+            InstCtor {
+                arity: 0,
+                template: "0n",
+            },
+            InstCtor {
+                arity: 1,
+                template: "1n+{0}",
+            },
+        ],
+        ctag: "{x}===0n",
+        ctor: &[&[], &["({x}-1n)"]],
+        mode: CnamMode::If,
+        nams: &[],
+    },
+    PrimType {
+        name: "Int",
+        inst: &[InstCtor {
+            arity: 2,
+            template: "{0}-{1}",
+        }],
+        ctag: "\"new\"",
+        ctor: &[&["int_pos({x})", "int_neg({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["new"],
+    },
+    PrimType {
+        name: "Bits",
+        inst: &[
+            InstCtor {
+                arity: 0,
+                template: "''",
+            },
+            InstCtor {
+                arity: 1,
+                template: "{0}+'0'",
+            },
+            InstCtor {
+                arity: 1,
+                template: "{0}+'1'",
+            },
+        ],
+        ctag: "{x}.length===0?'e':{x}[{x}.length-1]==='0'?'o':'i'",
+        ctor: &[&[], &["{x}.slice(0,-1)"], &["{x}.slice(0,-1)"]],
+        mode: CnamMode::Switch,
+        nams: &["e", "o", "i"],
+    },
+    PrimType {
+        name: "U8",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_u8({0})",
+        }],
+        ctag: "'u8'",
+        ctor: &[&["u8_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["u8"],
+    },
+    PrimType {
+        name: "U16",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_u16({0})",
+        }],
+        ctag: "'u16'",
+        ctor: &[&["u16_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["u16"],
+    },
+    PrimType {
+        name: "U32",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_u32({0})",
+        }],
+        ctag: "'u32'",
+        ctor: &[&["u32_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["u32"],
+    },
+    PrimType {
+        name: "I32",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_i32({0})",
+        }],
+        ctag: "'i32'",
+        ctor: &[&["i32_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["i32"],
+    },
+    PrimType {
+        name: "U64",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_u64({0})",
+        }],
+        ctag: "'u64'",
+        ctor: &[&["u64_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["u64"],
+    },
+    PrimType {
+        name: "U128",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_u128({0})",
+        }],
+        ctag: "'u128'",
+        ctor: &[&["u128_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["u128"],
+    },
+    PrimType {
+        name: "U256",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_u256({0})",
+        }],
+        ctag: "'u256'",
+        ctor: &[&["u256_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["u256"],
+    },
+    PrimType {
+        name: "F32",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_f32({0})",
+        }],
+        ctag: "'f32'",
+        ctor: &[&["f32_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["f32"],
+    },
+    PrimType {
+        name: "F64",
+        inst: &[InstCtor {
+            arity: 1,
+            template: "word_to_f64({0})",
+        }],
+        ctag: "'f64'",
+        ctor: &[&["f64_to_word({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["f64"],
+    },
+    PrimType {
+        name: "String",
+        inst: &[
+            InstCtor {
+                arity: 0,
+                template: "''",
+            },
+            InstCtor {
+                arity: 2,
+                template: "(String.fromCharCode({0})+{1})",
+            },
+        ],
+        ctag: "{x}.length===0",
+        ctor: &[&[], &["{x}.charCodeAt(0)", "{x}.slice(1)"]],
+        mode: CnamMode::If,
+        nams: &[],
+    },
+    PrimType {
+        name: "Buffer8",
+        inst: &[InstCtor {
+            arity: 2,
+            template: "u8array_to_buffer8({1})",
+        }],
+        ctag: "'b8'",
+        ctor: &[&["buffer8_to_depth({x})", "buffer8_to_u8array({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["b8"],
+    },
+    PrimType {
+        name: "Buffer32",
+        inst: &[InstCtor {
+            arity: 2,
+            template: "u32array_to_buffer32({1})",
+        }],
+        ctag: "'b32'",
+        ctor: &[&["buffer32_to_depth({x})", "buffer32_to_u32array({x})"]],
+        mode: CnamMode::Switch,
+        nams: &["b32"],
+    },
+];
+
+pub fn prim_type(name: &str) -> Option<&'static PrimType> {
+    PRIM_TYPES.iter().find(|p| p.name == name)
+}
+
+/// Substitute `{0}`… placeholders. Higher indices first so `{10}` is safe.
+pub fn subst_placeholders(tmpl: &str, args: &[String]) -> String {
+    let mut bod = tmpl.to_string();
+    for i in (0..args.len()).rev() {
+        let ph = format!("{{{i}}}");
+        bod = bod.replace(&ph, &args[i]);
+    }
+    bod
+}
+
+/// FmcToJs `build_from_template`.
+pub fn fill_template(tmpl: &str, arity: usize, args: &[String]) -> String {
+    let mut prefix = String::new();
+    for i in args.len()..arity {
+        prefix.push_str(&format!("a{i}=>"));
+    }
+    let mut filled = Vec::with_capacity(arity);
+    for i in 0..arity {
+        if i < args.len() {
+            filled.push(args[i].clone());
+        } else {
+            filled.push(format!("a{i}"));
+        }
+    }
+    let mut bod = subst_placeholders(tmpl, &filled);
+    bod = format!("({bod})");
+    for extra in args.iter().skip(arity) {
+        bod.push('(');
+        bod.push_str(extra);
+        bod.push(')');
+    }
+    format!("{prefix}{bod}")
+}
+
+pub fn apply_ctag(ctag: &str, expr: &str) -> String {
+    ctag.replace("{x}", expr)
+}
+
+pub fn apply_extract(extract: &str, expr: &str) -> String {
+    extract.replace("{x}", expr)
+}

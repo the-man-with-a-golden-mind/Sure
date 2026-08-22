@@ -9,7 +9,7 @@ mod span;
 mod subst;
 mod term;
 
-pub use file::parse_file;
+pub use file::{file_imps, parse_file};
 pub use lex::{tokenize, Keyword, LexError, Token, TokenKind};
 pub use name::{is_ident_start, is_letter, Name};
 pub use parse::{parse_term, ParseError};

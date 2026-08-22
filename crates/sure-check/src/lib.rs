@@ -1,30 +1,38 @@
-//! Sure type checker: bind, reduce, equal, check, expand, synth fix.
+//! Sure type checker: bind, reduce, equal, check, expand, synth load/fix.
 //!
 //! `subst_levels` / `open_all` / `open_lam` live in `sure-syntax` and are
 //! **not** re-exported here (that would pull `sure-fmc` into a cycle later).
 
 mod bind;
+mod cache;
 mod check;
 mod context;
 mod equal;
 mod error;
 mod expand;
+mod files;
 mod fix;
 mod has_holes;
+mod load;
 mod reduce;
 mod show;
 mod status;
+mod workspace;
 
 pub use bind::{bind, bind_holes, bind_term, bind_type, PathBuilder};
+pub use cache::{cache_key, decode, file_ok, Cache, Record, COMPILER, SCHEMA};
 pub use check::{cant_infer, check, check_direct, check_patch};
 pub use context::{at_last, find, Context};
 pub use equal::{equal, equal_go, equal_hole};
 pub use error::{Check, Error, TypeSide};
 pub use expand::{expand_cse, expand_get, expand_new, get_name_of_self_type};
+pub use files::files_of;
 pub use fix::{patch_at, synth_fix, synth_one, Loader, StubLoader};
 pub use has_holes::has_holes;
+pub use load::{check_names, is_proof_type, synth_many, Report};
 pub use reduce::{normalize, reduce};
 pub use show::{show, shown_has_hole};
+pub use workspace::{find_base, is_base_dir, Workspace};
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

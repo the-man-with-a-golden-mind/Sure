@@ -175,6 +175,25 @@ pub fn parse_file(file: &str, code: &str, defs: &mut Defs) -> Result<(), ParseEr
     p.file(file, code, defs)
 }
 
+/// `Sure.Parser.file.imps_of`. Header parse errors are an empty list (data).
+pub fn file_imps(code: &str) -> Vec<(String, Vec<String>)> {
+    let mut p = match Parser::from_src(code) {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+    if p.at_keyword(Keyword::Module) && p.parse_mod().is_err() {
+        return Vec::new();
+    }
+    let mut imps = Vec::new();
+    while p.at_keyword(Keyword::Import) {
+        match p.parse_imp() {
+            Ok(imp) => imps.push(imp),
+            Err(_) => break,
+        }
+    }
+    imps
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,6 +302,15 @@ mod tests {
         let main = defs.get("Main").unwrap();
         assert_eq!(strip_ori(&main.typ), app(r#ref("IO"), r#ref("Unit")));
         assert_eq!(strip_ori(&main.term), r#ref("Hello.demo"));
+        assert_eq!(file_imps(MAIN), vec![("Hello".into(), vec!["demo".into()])]);
+    }
+
+    #[test]
+    fn file_imps_exposing_all_and_empty_are_data() {
+        let src = "module Use exposing (y)\nimport M exposing (..)\ny: Type\n  x\n";
+        assert_eq!(file_imps(src), vec![("M".into(), vec!["..".into()])]);
+        assert!(file_imps("").is_empty());
+        assert!(file_imps("{").is_empty());
     }
 
     #[test]

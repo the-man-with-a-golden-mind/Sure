@@ -1,4 +1,4 @@
-//! `Sure.Synth.fix` and a loader-stub `Synth.one` (file load is PR 9).
+//! `Sure.Synth.fix` and `Synth.one`. File load is `Loader` (`Workspace` in `load.rs`).
 
 use sure_syntax::{Bits, Def, Defs, Name, Span, Status, Term};
 
@@ -8,9 +8,11 @@ use crate::error::Error;
 use crate::has_holes::has_holes;
 use crate::status;
 
-/// File loading is PR 9. Unit tests stub `Defs` and may inject missing names here.
+/// Unit tests stub `Defs`. The filesystem loader is `Workspace`.
 pub trait Loader {
     fn load(&self, name: &str, defs: Defs) -> Option<Defs>;
+
+    fn cache_put(&self, _name: &str, _def: &Def) {}
 }
 
 /// No-op loader: missing names stay missing (`undefined_reference`).
@@ -353,6 +355,9 @@ pub fn synth_one(name: &str, mut defs: Defs, loader: &dyn Loader) -> Option<Defs
                     def.term = term;
                     def.typ = typ;
                     status::put_def(&mut defs, def, status::done(false));
+                    if let Some(saved) = defs.get(&key) {
+                        loader.cache_put(name, saved);
+                    }
                     Some(defs)
                 }
             } else {

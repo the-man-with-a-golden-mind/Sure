@@ -1,0 +1,10 @@
+[package]
+name = "sure-fmc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "FormCore kernel for Sure"
+
+[lints]
+workspace = true

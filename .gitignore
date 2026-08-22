@@ -1,3 +1,4 @@
+/target
 **/node_modules
 bin/js/lib/
 bin/js/perf/last.json

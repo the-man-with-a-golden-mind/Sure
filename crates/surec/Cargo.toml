@@ -1,0 +1,20 @@
+[package]
+name = "surec"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sure compiler CLI"
+
+[[bin]]
+name = "sure"
+path = "src/main.rs"
+
+[dependencies]
+sure-syntax.workspace = true
+sure-check.workspace = true
+sure-fmc.workspace = true
+sure-emit.workspace = true
+
+[lints]
+workspace = true

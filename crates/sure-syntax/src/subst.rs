@@ -1,4 +1,11 @@
+use crate::span::Span;
 use crate::term::{Term, WithBinder};
+
+/// `Ori` span for a HOAS plug; subst does not enter these.
+const PLUG: Span = Span {
+    from: u32::MAX,
+    upto: u32::MAX,
+};
 
 /// Replace every `Var { level }` in `term`:
 ///   `level == a_lv` ⇒ clone `a`
@@ -13,9 +20,9 @@ pub fn subst_levels(term: &Term, a_lv: u32, a: &Term, b_lv: Option<u32>, b: &Ter
     match term {
         Term::Var { name, level } => {
             if *level == a_lv {
-                a.clone()
+                plug(a)
             } else if b_lv == Some(*level) {
-                b.clone()
+                plug(b)
             } else {
                 Term::Var {
                     name: name.clone(),
@@ -23,6 +30,7 @@ pub fn subst_levels(term: &Term, a_lv: u32, a: &Term, b_lv: Option<u32>, b: &Ter
                 }
             }
         }
+        Term::Ori { orig, .. } if *orig == PLUG => term.clone(),
         Term::All { bind_level, .. }
         | Term::Lam { bind_level, .. }
         | Term::Let { bind_level, .. }
@@ -163,6 +171,17 @@ fn opaque_binder(bind_level: u32, a_lv: u32, b_lv: Option<u32>) -> bool {
     bind_level < floor
 }
 
+/// Wrap a HOAS plug so later subst does not match Vars inside it.
+fn plug(term: &Term) -> Term {
+    match term {
+        Term::Ori { orig, .. } if *orig == PLUG => term.clone(),
+        _ => Term::Ori {
+            orig: PLUG,
+            expr: Box::new(term.clone()),
+        },
+    }
+}
+
 /// HOAS apply of `All.body(s, x)`: self at `bind_level`, name at `bind_level+1`.
 pub fn open_all(body: &Term, bind_level: u32, s: &Term, x: &Term) -> Term {
     subst_levels(body, bind_level, s, Some(bind_level + 1), x)
@@ -204,12 +223,74 @@ mod tests {
         }
     }
 
+    fn peel(term: &Term) -> Term {
+        match term {
+            Term::Ori { expr, .. } => peel(expr),
+            Term::Imp { expr } => peel(expr),
+            Term::App { func, argm } => app(peel(func), peel(argm)),
+            Term::Lam {
+                name,
+                body,
+                bind_level,
+            } => Term::Lam {
+                name: name.clone(),
+                body: Box::new(peel(body)),
+                bind_level: *bind_level,
+            },
+            Term::All {
+                eras,
+                self_name,
+                name,
+                xtyp,
+                body,
+                bind_level,
+            } => Term::All {
+                eras: *eras,
+                self_name: self_name.clone(),
+                name: name.clone(),
+                xtyp: Box::new(peel(xtyp)),
+                body: Box::new(peel(body)),
+                bind_level: *bind_level,
+            },
+            Term::Cse {
+                path,
+                expr,
+                name,
+                with,
+                cses,
+                moti,
+            } => Term::Cse {
+                path: path.clone(),
+                expr: Box::new(peel(expr)),
+                name: name.clone(),
+                with: with
+                    .iter()
+                    .map(|w| WithBinder {
+                        name: w.name.clone(),
+                        term: peel(&w.term),
+                        typ: w.typ.as_ref().map(peel),
+                    })
+                    .collect(),
+                cses: cses.iter().map(|(k, v)| (k.clone(), peel(v))).collect(),
+                moti: moti.as_deref().map(|t| Box::new(peel(t))),
+            },
+            Term::Get { expr, fkey } => Term::Get {
+                expr: Box::new(peel(expr)),
+                fkey: fkey.clone(),
+            },
+            other => other.clone(),
+        }
+    }
+
     /// 1. `open_all` at `ctx_size=0` substitutes self/name at levels 0/1.
     #[test]
     fn open_all_ctx0_self_name_levels() {
         let body = app(var("s", 0), var("x", 1));
         let opened = open_all(&body, 0, &Term::Ref(n("Self")), &Term::Ref(n("Arg")));
-        assert_eq!(opened, app(Term::Ref(n("Self")), Term::Ref(n("Arg"))));
+        assert_eq!(
+            peel(&opened),
+            app(Term::Ref(n("Self")), Term::Ref(n("Arg")))
+        );
     }
 
     /// 2. `lam` vs `all` at empty ctx: self becomes the lambda; name is level 0.
@@ -218,17 +299,17 @@ mod tests {
         let typv_body = app(var("s", 0), var("x", 1));
         let lam_term = lam("x", 0, var("x", 0));
         let opened = open_all(&typv_body, 0, &lam_term, &var("x", 0));
-        assert_eq!(opened, app(lam_term, var("x", 0)));
+        assert_eq!(peel(&opened), app(lam_term, var("x", 0)));
     }
 
     /// 3. `open_lam` is `App(Lam, arg)` beta (`reduce.sure` 15).
     #[test]
     fn open_lam_beta_app() {
         let body = var("x", 0);
-        assert_eq!(open_lam(&body, 0, &Term::Nat(2)), Term::Nat(2));
+        assert_eq!(peel(&open_lam(&body, 0, &Term::Nat(2))), Term::Nat(2));
         let twice = app(var("x", 0), var("x", 0));
         assert_eq!(
-            open_lam(&twice, 0, &Term::Nat(2)),
+            peel(&open_lam(&twice, 0, &Term::Nat(2))),
             app(Term::Nat(2), Term::Nat(2))
         );
     }
@@ -238,7 +319,7 @@ mod tests {
     fn open_lam_let_def() {
         let body = app(var("x", 0), Term::Str("k".into()));
         assert_eq!(
-            open_lam(&body, 0, &Term::Nat(4)),
+            peel(&open_lam(&body, 0, &Term::Nat(4))),
             app(Term::Nat(4), Term::Str("k".into()))
         );
     }
@@ -248,11 +329,11 @@ mod tests {
     fn open_all_expand_cse_dummy_levels() {
         let body = app(var("s", 0), var("x", 1));
         let opened = open_all(&body, 0, &var("s", 0), &var("x", 0));
-        assert_eq!(opened, app(var("s", 0), var("x", 0)));
+        assert_eq!(peel(&opened), app(var("s", 0), var("x", 0)));
 
         let body = app(var("s", 5), var("x", 6));
         let opened = open_all(&body, 5, &var("s", 0), &var("x", 0));
-        assert_eq!(opened, app(var("s", 0), var("x", 0)));
+        assert_eq!(peel(&opened), app(var("s", 0), var("x", 0)));
     }
 
     /// Nested `open_all` must not rewrite binders inside the substituted self
@@ -264,10 +345,28 @@ mod tests {
         // Outer All body: P(self). After open at 0, P(ctor).
         let outer = app(var("P", 1), var("self", 0));
         let after_outer = open_all(&outer, 0, &ctor, &var("P", 1));
-        assert_eq!(after_outer, app(var("P", 1), ctor.clone()));
+        assert_eq!(peel(&after_outer), app(var("P", 1), ctor.clone()));
         // Inner All at bind_level 2 would rewrite ctor's λzero/λsucc without the floor.
         let after_inner = open_all(&after_outer, 2, &var("zero_self", 2), &var("zero", 3));
-        assert_eq!(after_inner, app(var("P", 1), ctor));
+        assert_eq!(peel(&after_inner), app(var("P", 1), ctor));
+    }
+
+    #[test]
+    fn plugged_term_var_not_stolen_by_later_all() {
+        // `Word.from_bits`: after `size := Var(2)`, bits-All at bind_level 2
+        // must not rewrite the index into the function.
+        let word_size = app(Term::Ref(n("Word")), var("size", 1));
+        let after_size = open_all(&word_size, 0, &Term::Ref(n("Wfb")), &var("size.pred", 2));
+        let after_bits = open_all(
+            &after_size,
+            2,
+            &Term::Ref(n("Wfb_size")),
+            &Term::Ref(n("Bits.e")),
+        );
+        assert_eq!(
+            peel(&after_bits),
+            app(Term::Ref(n("Word")), var("size.pred", 2))
+        );
     }
 
     #[test]
@@ -276,7 +375,7 @@ mod tests {
         // `a` itself has a var at `b_lv`; must not be rewritten after cloning.
         let a = var("x", 1);
         let b = Term::Nat(9);
-        assert_eq!(subst_levels(&body, 0, &a, Some(1), &b), var("x", 1));
+        assert_eq!(peel(&subst_levels(&body, 0, &a, Some(1), &b)), var("x", 1));
     }
 
     #[test]
@@ -284,7 +383,7 @@ mod tests {
         // Absolute levels: Var(0) under a nested Lam still matches outer self.
         let inner = lam("y", 2, var("s", 0));
         let opened = open_all(&inner, 0, &Term::Ref(n("S")), &Term::Ref(n("X")));
-        assert_eq!(opened, lam("y", 2, Term::Ref(n("S"))));
+        assert_eq!(peel(&opened), lam("y", 2, Term::Ref(n("S"))));
     }
 
     #[test]
@@ -309,7 +408,13 @@ mod tests {
             .collect(),
             moti: Some(Box::new(var("n", 1))),
         };
-        let out = subst_levels(&cse, 0, &Term::Nat(1), Some(1), &Term::Nat(2));
+        let out = peel(&subst_levels(
+            &cse,
+            0,
+            &Term::Nat(1),
+            Some(1),
+            &Term::Nat(2),
+        ));
         match out {
             Term::Cse {
                 expr,

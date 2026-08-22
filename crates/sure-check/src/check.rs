@@ -679,6 +679,24 @@ mod tests {
     }
 
     #[test]
+    fn word_from_bits_and_hello_spec_check() {
+        use crate::workspace::Workspace;
+        use std::path::PathBuf;
+        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut ws = Workspace::open(repo.join("base"), repo.join("examples/hello"));
+        let w = crate::load::check_names(&["Word.from_bits".into()], &mut ws);
+        assert!(w.ok, "Word.from_bits must check, diags={:?}", w.diagnostics);
+        let spec = crate::load::check_names(&["Hello.Spec".into()], &mut ws);
+        assert!(
+            spec.ok && spec.proved,
+            "Hello.Spec must prove, ok={} proved={} diags={:?}",
+            spec.ok,
+            spec.proved,
+            spec.diagnostics
+        );
+    }
+
+    #[test]
     fn gol_emits_show_goal() {
         let term = Term::Gol {
             name: n("admit"),
